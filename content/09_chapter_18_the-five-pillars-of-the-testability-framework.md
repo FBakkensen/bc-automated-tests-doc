@@ -54,7 +54,7 @@ When test codeunits are called from the OnRun trigger of a test runner, OnBefore
 The latter can be achieved by using the Boolean return value of the OnBeforeTestRun trigger. Returning TRUE, the test codeunit or test function runs. Returning FALSE, it is skipped. Use the OnAfterTestRun trigger to perform post-processing, such as logging the result of each test.
 When the OnAfterTestRun trigger is run, the standard result message box, as we have seen so far, is not shown. 
 
-![Image from page 45](../diagrams/page_45_img_22.png)
+![Image from page 45](../images/page_45_img_22.png)
 
 ## Page 46
 The Testability Framework Chapter 2 [ 31 ] Both OnBeforeTestRun and OnAfterTestRun are run in their own database transaction. This means that changes made to the database with each of these triggers are committed once their execution finishes.
@@ -63,7 +63,7 @@ For this, the test codeunit TestIsolation property has been introduced, and it h
 made outside of the database, and to variables, including temporary tables With test isolation, Codeunit, or Function, all data changes will be rolled back, 2. even if they were explicitly committed using the AL Commit statement Running test codeunits outside of the test isolation, either Codeunit or 3.
 Function of a test runner will effectuate any database transaction Using test isolation, Function will give extra overhead compared to Codeunit, 4. resulting in longer execution time, as with the ending of each test function, the database changes have to be reverted.
 
-![Image from page 46](../diagrams/page_46_img_63.png)
+![Image from page 46](../images/page_46_img_63.png)
 
 ## Page 47
 The Testability Framework Chapter 2 [ 32 ] Setting the test isolation to Function might be unwanted, as it fully disables 5. dependencies between test functions, which might be needed when, for an extended test scenario, intermediate results should be reported, and this has been achieved by a series of individual, but interdependent, test functions With the TestIsolation property of a test runner, we have control over how to 6.
