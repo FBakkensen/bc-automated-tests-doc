@@ -8,7 +8,7 @@ Being a real IT pro, you will think up ways of doing this as efficiently as poss
 These are what we call test data setup design patterns, or fixture or test fixture design patterns, and each has its own name: The first one is what we call a prebuilt fixture. This is test data that is created before any of the tests are run.
 In the context of Dynamics 365 Business Central, this will be a prepared database, such as CRONUS, the demo company that Microsoft provides. 
 
-![Image from page 71](../images/page_71_img_19.png)
+![Image from page 71](../diagrams/page_71_img_19.png)
 
 ## Page 72
 Test Design Chapter 4 [ 57 ] The second pattern is known as shared fixture, or lazy setup. This concerns the setup of data shared by a group of tests. In our Dynamics 365 Business Central context, this concerns generic master data, supplemental data, and setup data, such as customer and currency data and a rounding precision, all needed to run a group of tests.
