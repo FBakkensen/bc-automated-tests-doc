@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdf2md"
+version = "0.0.1"
+description = "Technical PDF to structured Markdown conversion tool (scaffold)"
+authors = [ { name = "Your Name" } ]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+  "pdfplumber>=0.11.0",
+  "pdfminer.six>=20221105",
+  "pypdf>=4.0.0",
+  "pdf2image>=1.17.0",
+  "pydantic>=2.0.0",
+  "typer>=0.12.0",
+  "python-slugify>=8.0.0",
+  "Pygments>=2.17.0"
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0", "pytest-cov>=5.0.0", "ruff>=0.5.0", "mypy>=1.8.0"]
+
+[project.scripts]
+pdf2md = "pdf2md.cli:app"
+
+[tool.pytest.ini_options]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
