@@ -51,6 +51,15 @@ Keep layers loosely coupled. Avoid embedding rendering concerns in ingestion or 
 - Future golden tests: small synthetic PDFs producing snapshot markdown (store under `tests/fixtures` + `tests/golden/`). Do NOT add large binary PDFs to repo; prefer minimal crafted samples.
 - Determinism check: hash of serialized structural tree should be stable across runs (add later).
 
+## TDD Requirement
+- Strict TDD: This project follows a strict test-driven development (TDD) flow. Every code change must include or update unit tests that cover the new behavior. Before returning work (or creating a PR), ensure all tests at minimum parse and collect successfully (no syntax/import/collection errors) when run locally. Aim for tests to pass; CI may enforce passing tests for merges.
+
+## Using Context7 for External Docs
+- When documentation or code examples for an external library are needed, use the Context7 tools in this order: first call the resolver to obtain a Context7-compatible library ID, then fetch the library docs with that ID. This ensures accurate, up-to-date examples and reduces ambiguity. Example workflow:
+    1. Call `mcp_context7_resolve-library-id` with the library name to get the library ID.
+    2. Call `mcp_context7_get-library-docs` with the returned ID and topic to retrieve focused documentation.
+ 3. Use the fetched docs as the authoritative source when generating code or writing examples. Do not skip the resolver step unless the exact Context7 ID is provided.
+
 ## Performance & Memory
 - Stream pages (generator) rather than accumulating all page objects in memory.
 - Defer expensive operations (image rasterization) until after structural text extraction is complete.
