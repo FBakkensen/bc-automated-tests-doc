@@ -1,6 +1,6 @@
 # pdf2md Design Specification (AI-Optimized)
 
-<!-- markdownlint-disable MD012 MD032 MD022 MD058 MD046 MD024 MD033 MD029 MD038 -->
+<!-- markdownlint-disable MD012 MD032 MD022 MD058 MD024 MD029 MD038 -->
 
 Version: 0.1 Source Basis: PRD distilled into structured, machine-friendly form.
 

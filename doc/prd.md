@@ -11,7 +11,7 @@ watermarks), preserves logical structure (parts, chapters, sections, code
 listings, tables, callouts), and extracts embedded images (diagrams, figures)
 while keeping references consistent.
 
-<!-- markdownlint-disable MD013 MD012 MD032 MD022 MD058 MD046 MD024 MD033 MD029 MD038 -->
+<!-- markdownlint-disable MD013 MD012 MD032 MD022 MD058 MD024 MD029 MD038 -->
 
 Primary objective: High-fidelity, human-editable Markdown with minimal post-
 processing.
@@ -227,53 +227,51 @@ output/
 1. Inline Code:
 - Short monospaced spans embedded in regular paragraphs -> wrap in backticks.
 1. Image Extraction:
-- Export vector and raster objects where possible (fallback: page raster
-
-     cropping around figure region if compound grouping is detected).
+- Export vector and raster objects where possible (fallback: page raster cropping around figure region if compound grouping is detected).
 
 - Associate nearest preceding or following caption (pattern: `Figure \d+:` or
 
-     italic smaller font) and store in alt text.
+italic smaller font) and store in alt text.
 
 1. Table Reconstruction:
 - Detect ruled lines or column-aligned text boxes (grid inference via
 
-     x-coordinate clustering).
+x-coordinate clustering).
 
 - Output Markdown table; fallback to preformatted fenced block if ambiguous.
 1. Footnotes:
 - Detect superscript markers and trailing page footnote region based on
 
-     y-position at page bottom. 10. Cross-Reference Normalization:
+y-position at page bottom. 10. Cross-Reference Normalization:
 
 - Convert `See Chapter 3` to internal relative link if target heading slug
 
-      exists. 11. Slug Generation:
+exists. 11. Slug Generation:
 
 - Deterministic: lowercase, hyphenate, remove punctuation, prefix with
 
-      sequence for ordering. 12. Manifest Generation:
+sequence for ordering. 12. Manifest Generation:
 
 - Produce `manifest.json` adhering to canonical schema (see [doc/manifest-
 
-     schema.md](manifest-schema.md)) with deterministic ordering and structural
+schema.md](manifest-schema.md)) with deterministic ordering and structural
      hash. 13. TOC Export:
 
 - Optional YAML structure for MkDocs or JSON for dynamic sites. 14. Config
 
-      Overrides:
+Overrides:
 
 - External file controlling heuristic thresholds, feature toggles, and
 
-      safety limits. 15. Logging & Verbosity Levels:
+safety limits. 15. Logging & Verbosity Levels:
 
 - Structured logging with adjustable verbosity (`--verbose`, `--quiet`). 16.
 
-      Dry Run Mode:
+Dry Run Mode:
 
 - Output detected structure summary without writing Markdown/assets. 17.
 
-      Resume Mode:
+Resume Mode:
 
 - Skip already converted assets unless `--force`.
 

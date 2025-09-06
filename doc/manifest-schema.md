@@ -1,6 +1,6 @@
 # Manifest Schema Specification
 
-<!-- markdownlint-disable MD013 MD012 MD032 MD022 MD058 MD046 MD024 MD033 MD029 MD038 -->
+<!-- markdownlint-disable MD013 MD012 MD032 MD022 MD058 MD024 MD029 MD038 -->
 
 This document defines the canonical manifest schema for the pdf2md tool,
 extracted and normative from the PRD. It includes the top-level shape, field
@@ -99,26 +99,14 @@ tests) and enable structural change detection.
 
 ### Canonical Serialization for Hash
 
-1. Construct a Python dict with only keys: `sections`, `figures`, `footnotes`
+1. Construct a Python dict with only keys: `sections`, `figures`, `footnotes` (optional),
+   each mapped to arrays of minimal projection objects:
 
-   (optional), each mapped to arrays of minimal projection objects:
-
-- Section projection: `{id, slug, parent_id, level, order_index, title,
-
-      page_span}`
-
-- Figure projection: `{id, section_id, page, image_path, caption,
-
-     caption_source, caption_confidence, slug}`
-
-- Cross Reference projection (not part of structural hash):
-
-     `{source_section_id, target_slug, text, type}`
-
+- Section projection: `{id, slug, parent_id, level, order_index, title, page_span}`
+- Figure projection: `{id, section_id, page, image_path, caption, caption_source, caption_confidence, slug}`
+- Cross Reference projection (not part of structural hash): `{source_section_id, target_slug, text, type}`
 - Footnote projection: `{id, section_id, ref_text}`
-1. Sort arrays by `order_index` (sections) or numeric suffix of id
-
-   (figures/footnotes) even if already in order (idempotent).
+1. Sort arrays by `order_index` (sections) or numeric suffix of id (figures/footnotes) even if already in order (idempotent).
 
 1. Serialize to JSON with: UTF-8, separators `(, :)` (no whitespace), keys
 
