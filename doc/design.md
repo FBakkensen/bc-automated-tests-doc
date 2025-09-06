@@ -1,6 +1,6 @@
 # pdf2md Design Specification (AI-Optimized)
 
-<!-- markdownlint-disable MD012 MD032 MD022 MD058 MD024 -->
+<!-- markdownlint-disable MD012 MD058 MD024 -->
 
 Version: 0.1 Source Basis: PRD distilled into structured, machine-friendly form.
 
@@ -561,6 +561,7 @@ for m in non_overlap:
 <!-- markdownlint-disable MD013 -->
 
 ## 15. Non-Goals (Initial)
+
 OCR for scanned PDFs, semantic figure deduplication, glossary extraction, math
 LaTeX reconstruction.
 
@@ -591,6 +592,7 @@ determinism, privacy, and graceful degradation when unavailable.
   when limits are reached.
 
 Config keys (see PRD for canonical list):
+
 - `ai.enabled` (bool, default false)
 - `ai.provider` (enum: azure_openai)
 - `ai.min_confidence` (float, default 0.85)
@@ -610,7 +612,9 @@ Config keys (see PRD for canonical list):
 CLI flags (planned): `--ai`, `--ai-provider azure-openai`,
 `--ai-cache-mode <mode>`, `--ai-min-confidence <x>`.
 
+
 ## 16. Security Notes
+
 Networked AI is allowed when explicitly enabled. Limit resource usage and
 defer expensive rasterization until needed.
 
@@ -624,10 +628,12 @@ defer expensive rasterization until needed.
   refreshed. Record provider identifiers for reproducibility.
 
 ## 17. Quality Gates
+
 Fail build on fatal config / parse errors; ensure ≥98% code block fidelity (spot
 QA); performance target <90s for ~300 pages.
 
 ## 18. Glossary
+
 | Term | Definition |
 |------|------------|
 | Span | Atomic text unit with layout metadata |
