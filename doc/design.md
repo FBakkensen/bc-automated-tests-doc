@@ -1,6 +1,6 @@
 # pdf2md Design Specification (AI-Optimized)
 
-<!-- markdownlint-disable MD013 MD012 MD032 MD022 MD058 MD046 MD024 MD033 MD029 MD038 -->
+<!-- markdownlint-disable MD012 MD032 MD022 MD058 MD046 MD024 MD033 MD029 MD038 -->
 
 Version: 0.1 Source Basis: PRD distilled into structured, machine-friendly form.
 
@@ -146,7 +146,7 @@ classDiagram
 | Figure | id, image_path, page | id monotonic, caption optional |
 | ManifestEntry | slug, file | Slug unique global |
 
-<!-- markdownlint-disable MD013 -->
+<!-- markdownlint-enable MD013 -->
 
 ### 3.2 Block Types
 
@@ -384,6 +384,7 @@ incremental updates without full recomputation.
 
 ## 10. Error & Exit Codes
 
+<!-- markdownlint-disable MD013 -->
 | Category | Exit | Code | Trigger | Severity | Trigger Stage | Escalation |
 |----------|------|------|---------|----------|---------------|------------|
 | CONFIG | 2 | config_parse_error | YAML/JSON load failure | Fatal | Config Load | N/A |
@@ -400,6 +401,7 @@ incremental updates without full recomputation.
 | PARSE | 4 | structural_hash_failure | Hash computation inconsistency | Fatal | Export | N/A |
 | PARSE | 4 | over_removal_abort | Noise removal exceeds max drop ratio | Fatal | Noise Filtering | N/A |
 | PARSE | 4 | numbering_strict_violation | Duplicate chapter/appendix when strict | Fatal | Numbering | Via numbering_error_strict=true |
+<!-- markdownlint-disable MD013 -->
 | GENERAL | 1 | unhandled_exception | Fallback for unexpected errors | Fatal | Any | N/A |
 | WARN | - | chapter_number_reset_detected | Chapter numbering resets after part | Non-fatal | Numbering | Log and continue (global increment) |
 | WARN | - | duplicate_chapter_number | Duplicate explicit chapter number | Non-fatal | Numbering | Log and use implicit sequence |
@@ -407,6 +409,8 @@ incremental updates without full recomputation.
 | WARN | - | appendix_out_of_order | Appendix letters not sequential | Non-fatal | Appendix Detection | Log and retain original |
 | WARN | - | appendix_duplicate_letter | Duplicate appendix letter | Non-fatal | Appendix Detection | Log and demote second to section |
 | WARN | - | xref_unresolved | Unresolved cross-reference | Non-fatal | Post-Processing | Apply policy (annotate/keep/drop) |
+<!-- markdownlint-enable MD013 -->
+<!-- markdownlint-enable MD013 -->
 
 ```python
 if error.category in ['CONFIG', 'IO', 'PARSE']:
@@ -424,6 +428,8 @@ Section 15 [prd.md#L791](prd.md#L791).
 **Note:** The original keys listed first in the table below represent a Critical
 Subset focused on core heuristics. The full table integrates all configuration
 keys from PRD Section 12.1 for completeness.
+
+<!-- markdownlint-disable MD013 -->
 
 | Key | Type | Default | Validation | Impact |
 |-----|------|---------|------------|--------|
@@ -451,6 +457,7 @@ keys from PRD Section 12.1 for completeness.
 | noise_header_top_px | int | 120 | <0 | Header band height for noise detection |
 | noise_footer_bottom_px | int | 120 | <0 | Footer band height for noise detection |
 | noise_max_chars | int | 80 | <1 | Max chars for noise candidate classification |
+<!-- markdownlint-disable MD013 -->
 | noise_keep_patterns | list[str] | [] | invalid regex | Regex allowlist to retain potential noise |
 | noise_drop_patterns | list[str] | [] | invalid regex | Regex blocklist for forced noise removal |
 | noise_protect_numeric_pages | list[int] | [] | any <1 | Pages to retain page numbers as non-noise |
@@ -470,6 +477,7 @@ keys from PRD Section 12.1 for completeness.
 | xref_max_per_section | int | 100 | <1 | Rate-limit resolved xrefs per section |
 | xref_resolve_figures | bool | true | - | Enable figure reference resolution |
 | xref_resolve_appendices | bool | false | - | Enable appendix reference resolution |
+<!-- markdownlint-disable MD013 -->
 | xref_patterns | list[regex] | [] | invalid regex | Override/extend default xref patterns |
 | numbering_validate_gaps | bool | true | - | Warn on numbering gaps in sections |
 | numbering_allow_chapter_resets | bool | false | - | Honor chapter resets per-part |
@@ -477,6 +485,8 @@ keys from PRD Section 12.1 for completeness.
 | appendix_letter_case | enum | upper | invalid enum | Letter case normalization for appendices |
 | appendix_requires_page_break | bool | true | - | Enforce page break rule for appendix headings |
 | numbering_error_strict | bool | false | - | Escalate numbering anomalies to fatal errors |
+<!-- markdownlint-enable MD013 -->
+<!-- markdownlint-enable MD013 -->
 
 Weight Integrity: sum(figure_caption_weight_*) == 1 ±1e-6 or CONFIG error.
 
@@ -526,7 +536,7 @@ for m in non_overlap:
 ```
 
 ## 13. Test Matrix (Abbreviated)
-<!-- markdownlint-disable MD013 -->
+<!-- markdownlint-enable MD013 -->
 | Area | Test Focus | Example |
 |------|------------|---------|
 | Slugging | Uniqueness & prefix width | Two similar titles produce -2 suffix |
@@ -537,7 +547,7 @@ for m in non_overlap:
 | Orphan Demotion | Heading w/o content | Demoted meta flag |
 | Manifest Hash | Stability | Run twice -> identical hash |
 
-<!-- markdownlint-disable MD013 -->
+<!-- markdownlint-enable MD013 -->
 
 ## 14. Extension Points
 <!-- markdownlint-disable MD013 -->
