@@ -20,7 +20,11 @@ This file provides guidance to agents when working with code in this repository.
 - I/O: Keep functions pure; restrict writes/image extraction to exporter.py.
 - Config: Pass ToolConfig explicitly (no globals); load from YAML/JSON via ToolConfig.from_file.
 - Models: Dataclasses for internal; Pydantic for validation (e.g., manifest schema).
-- No network calls during conversion (PRD requirement).
+- Network policy: Offline by default. Allow network calls only to explicitly
+   configured AI provider endpoints when `ai.enabled=true` (e.g., Azure
+   OpenAI). All other network activity remains disallowed. The tool is not
+   restricted to offline-only operation; it works fully offline and optionally
+   online with AI assistance when enabled.
 - Implementation phasing: ingest.py → headings.py → structure.py → codeblocks.py/tables.py → figures.py → build_tree.py → render.py → exporter.py → postprocess.py.
 - Testing: Use synthetic samples in tests/fixtures and tests/golden/ (no large PDFs in repo); check determinism via structural tree hash.
 - TDD: Add unit tests for every new heuristic/transformation; ensure no syntax/import errors pre-PR.

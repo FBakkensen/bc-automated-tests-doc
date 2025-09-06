@@ -118,7 +118,7 @@ validate_file() {
     done < "$file_path"
 
     # Render with pandoc
-    if ! pandoc "$file_path" -t html -o /dev/null >/dev/null 2>&1; then
+    if ! pandoc -f gfm "$file_path" -t html -o /dev/null >/dev/null 2>&1; then
         echo "  ERROR: Pandoc render error"
         ((file_errors++))
     fi

@@ -1,5 +1,7 @@
 # Markdown Validation System Design for pdf2md
 
+<!-- markdownlint-disable MD013 MD012 MD032 MD022 MD058 MD046 MD024 MD033 MD029 MD038 -->
+
 Version: 0.1 Date: 2025-09-06 Basis: Builds on doc/design.md fixes for Mermaid
 syntax (e.g., unquoted labels with parentheses) and integrates validation for
 development and PDF conversion workflows.

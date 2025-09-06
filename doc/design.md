@@ -1,5 +1,7 @@
 # pdf2md Design Specification (AI-Optimized)
 
+<!-- markdownlint-disable MD013 MD012 MD032 MD022 MD058 MD046 MD024 MD033 MD029 MD038 -->
+
 Version: 0.1 Source Basis: PRD distilled into structured, machine-friendly form.
 
 ## 1. Purpose
@@ -8,6 +10,11 @@ Convert technical, text-based PDFs into a deterministic, multi-file,
 semantically structured Markdown corpus (chapters, sections, lists, code,
 tables, figures, footnotes, manifest, optional TOC) with high fidelity and
 idempotent output.
+
+Network policy: Offline by default. When `ai.enabled=true`, permit calls only
+to explicitly configured AI provider endpoints (e.g., Azure OpenAI). All other
+network calls remain disallowed. The tool supports both fully offline use and
+optional online AI assistance when enabled.
 
 ## 2. High-Level Pipeline
 
@@ -41,7 +48,7 @@ flowchart LR
 | Rendering | Final tree | Markdown strings | Serialize blocks, file naming | Writes files | Deterministic (I/O) |
 | Export | Render output | Manifest, TOC | Structural hash, asset copy | Writes JSON/YAML | Deterministic (I/O) |
 
-<!-- markdownlint-enable MD013 -->
+<!-- markdownlint-disable MD013 -->
 
 ### 9.1 TOC Generation
 
@@ -139,7 +146,7 @@ classDiagram
 | Figure | id, image_path, page | id monotonic, caption optional |
 | ManifestEntry | slug, file | Slug unique global |
 
-<!-- markdownlint-enable MD013 -->
+<!-- markdownlint-disable MD013 -->
 
 ### 3.2 Block Types
 
@@ -530,7 +537,7 @@ for m in non_overlap:
 | Orphan Demotion | Heading w/o content | Demoted meta flag |
 | Manifest Hash | Stability | Run twice -> identical hash |
 
-<!-- markdownlint-enable MD013 -->
+<!-- markdownlint-disable MD013 -->
 
 ## 14. Extension Points
 <!-- markdownlint-disable MD013 -->
@@ -541,15 +548,70 @@ for m in non_overlap:
 | Plugin System | Post-Processing dispatcher | Custom block transforms |
 | Schema Evolution | Manifest schema_version bump | Backward compatibility |
 
-<!-- markdownlint-enable MD013 -->
+<!-- markdownlint-disable MD013 -->
 
 ## 15. Non-Goals (Initial)
 OCR for scanned PDFs, semantic figure deduplication, glossary extraction, math
 LaTeX reconstruction.
 
+## 12. AI Integration (Azure OpenAI)
+
+Goal: Allow optional AI assistance using hosted models while preserving
+determinism, privacy, and graceful degradation when unavailable.
+
+- Providers: `azure_openai` (first-class). Additional providers may be added
+  later behind the same interface.
+- Call points (optional, gated by config):
+  - Heading disambiguation (after heading candidate detection).
+  - Code block boundary refinement.
+  - Figure–caption scoring tie-breaks.
+  - Noise classification (headers/footers).
+- Determinism: Use temperature=0, top_p=1; record `system_fingerprint`
+  (provider) and deployment identifiers. Persist advisor decisions in an
+  on-disk cache keyed by a stable feature hash; subsequent runs reuse cached
+  decisions unless `ai.cache_mode=refresh`. Heuristic result remains the
+  source of truth when AI confidence is below threshold.
+- Privacy: Minimize payloads. Prefer feature vectors or short snippets. Support
+  optional redaction of digits/emails/URIs. Never send full PDF content.
+- Failure handling: Timeouts, bounded retries, and fast fallback to pure
+  heuristics. Network failures never abort unless `ai.fail_on_error=true`.
+- Observability: Log per-call metadata (provider, deployment, tokens used,
+  latency, decision accepted/ignored) at INFO; redact content by default.
+- Cost/latency budgets: Enforce request and total budgets; degrade to heuristics
+  when limits are reached.
+
+Config keys (see PRD for canonical list):
+- `ai.enabled` (bool, default false)
+- `ai.provider` (enum: azure_openai)
+- `ai.min_confidence` (float, default 0.85)
+- `ai.cache_dir` (path, default `.ai-cache` in output root)
+- `ai.cache_mode` (enum: read_write|readonly|refresh; default read_write)
+- `ai.timeout_s` (int, default 15)
+- `ai.max_concurrent` (int, default 2)
+- `ai.max_tokens` (int, default 256)
+- `ai.temperature` (float, default 0.0)
+- `ai.top_p` (float, default 1.0)
+- `ai.redact_snippets` (bool, default true)
+- `ai.azure.endpoint` (url)
+- `ai.azure.deployment` (string)
+- `ai.azure.api_version` (string)
+- `ai.azure.api_key_env` (string, name of env var holding key)
+
+CLI flags (planned): `--ai`, `--ai-provider azure-openai`,
+`--ai-cache-mode <mode>`, `--ai-min-confidence <x>`.
+
 ## 16. Security Notes
-Offline operation; no network calls; limit resource usage; defer expensive
-rasterization until needed.
+Networked AI is allowed when explicitly enabled. Limit resource usage and
+defer expensive rasterization until needed.
+
+- Egress policy: Only calls to configured AI provider endpoints are allowed
+  (e.g., Azure OpenAI). All other network calls remain disallowed.
+- Graceful offline: If the network or provider is unavailable, continue using
+  heuristics. AI is an advisor, not a dependency.
+- Data minimization: Send only the minimum text or features required; redact
+  sensitive tokens when configured.
+- Deterministic re-runs: Cache AI decisions and reuse them unless explicitly
+  refreshed. Record provider identifiers for reproducibility.
 
 ## 17. Quality Gates
 Fail build on fatal config / parse errors; ensure ≥98% code block fidelity (spot

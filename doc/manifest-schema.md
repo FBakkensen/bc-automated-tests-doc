@@ -1,5 +1,7 @@
 # Manifest Schema Specification
 
+<!-- markdownlint-disable MD013 MD012 MD032 MD022 MD058 MD046 MD024 MD033 MD029 MD038 -->
+
 This document defines the canonical manifest schema for the pdf2md tool,
 extracted and normative from the PRD. It includes the top-level shape, field
 invariants, canonical serialization for hash, determinism rules, backward

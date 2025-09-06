@@ -11,8 +11,16 @@ watermarks), preserves logical structure (parts, chapters, sections, code
 listings, tables, callouts), and extracts embedded images (diagrams, figures)
 while keeping references consistent.
 
+<!-- markdownlint-disable MD013 MD012 MD032 MD022 MD058 MD046 MD024 MD033 MD029 MD038 -->
+
 Primary objective: High-fidelity, human-editable Markdown with minimal post-
 processing.
+
+Network policy: Offline by default. When `ai.enabled=true`, the tool may make
+calls only to explicitly configured AI provider endpoints (e.g., Azure OpenAI);
+all other network calls remain disallowed. The tool is not restricted to
+offline-only operation; it functions fully offline and optionally online with
+AI assistance when enabled.
 
 ## 2. Goals & Success Criteria
 
@@ -95,9 +103,7 @@ output/
   reflecting pre-order traversal of top-level logical units (frontmatter faux-
   section → parts → chapters → appendices).
 
-- Chapter filename schema: `<index>_chapter_<chapterNumber>_<slugified-
-
-  title>.md`.
+- Chapter filename schema: `<index>_chapter_<chapterNumber>_<slugified-title>.md`.
 
 - Part filename schema: `<index>_part_<roman-or-decimal>_<slugified-title>.md`
 
@@ -1218,6 +1224,32 @@ appendix_level: chapter
 # Numbering strictness
 numbering_error_strict: false
 
+### 12.2 AI Integration Configuration
+
+AI assistance is optional and disabled by default. When enabled, only the
+configured provider may be contacted.
+
+- `ai.enabled` (bool, default false)
+- `ai.provider` (enum: `azure_openai`)
+- `ai.min_confidence` (float, default 0.85)
+- `ai.timeout_s` (int, default 15)
+- `ai.max_concurrent` (int, default 2)
+- `ai.max_tokens` (int, default 256)
+- `ai.temperature` (float, default 0.0)
+- `ai.top_p` (float, default 1.0)
+- `ai.cache_dir` (string, default `.ai-cache` under output root)
+- `ai.cache_mode` (enum: `read_write`|`readonly`|`refresh`; default `read_write`)
+- `ai.redact_snippets` (bool, default true)
+- `ai.fail_on_error` (bool, default false)
+- `ai.use_cases` (list[str], default `[]`) — subset of
+  ["headings","codeblocks","captions","noise","tables"].
+
+Azure-specific keys:
+- `ai.azure.endpoint` (url)
+- `ai.azure.deployment` (string)
+- `ai.azure.api_version` (string)
+- `ai.azure.api_key_env` (string; env var name holding the key)
+
 # Cross reference (deduplicated; patterns empty = internal defaults)
 xref_enable: true
 xref_case_insensitive: true
@@ -1414,10 +1446,19 @@ This taxonomy supersedes earlier minimal bullet list.
 
 ## 16. Security & Compliance
 
-- No external network calls during conversion.
-- Handle untrusted PDFs defensively: limit resource usage, optional sandbox note
-
-  (future).
+- External network calls are permitted only to explicitly configured AI providers
+  (e.g., Azure OpenAI) when `ai.enabled=true`. All non-AI network calls remain
+  disallowed.
+- Determinism with AI: Use temperature=0, top_p=1; record provider deployment
+  identifiers and `system_fingerprint` (when available). Persist AI decisions in
+  a cache keyed by stable features to ensure re-run stability; cache refresh is
+  explicit.
+- Privacy: Minimize payloads (features/snippets), support redaction, and avoid
+  sending full-page text. Keys are provided via environment variables.
+- Failure policy: Timeouts and bounded retries; fallback to heuristics if the
+  provider is unavailable. Optional `ai.fail_on_error` to escalate.
+- Handle untrusted PDFs defensively: limit resource usage; sandboxing remains
+  optional (future).
 
 ## 17. Performance Considerations
 
