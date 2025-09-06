@@ -1098,6 +1098,10 @@ Options:
 - `--max-pages N` for debugging.
 - `--verbose / -v` repeatable.
 - `--language-detect` enable expensive code language inference.
+- `--ai` enable optional AI assistance.
+- `--ai-provider {github-models,azure-openai}` select provider (dev/prod defaults).
+- `--ai-cache-mode {read_write,readonly,refresh}` control decision cache behavior.
+- `--ai-min-confidence <float>` acceptance threshold for AI suggestions.
 
 ## 12. Configuration Schema (Draft)
 
@@ -1219,10 +1223,13 @@ numbering_error_strict: false
 ### 12.2 AI Integration Configuration
 
 AI assistance is optional and disabled by default. When enabled, only the
-configured provider may be contacted.
+configured provider may be contacted. Determinism requires `temperature=0` and
+`top_p=1` and caching of accepted decisions.
+
+Core keys:
 
 - `ai.enabled` (bool, default false)
-- `ai.provider` (enum: `azure_openai`)
+- `ai.provider` (enum: `github_models` | `azure_openai`)
 - `ai.min_confidence` (float, default 0.85)
 - `ai.timeout_s` (int, default 15)
 - `ai.max_concurrent` (int, default 2)
@@ -1236,11 +1243,23 @@ configured provider may be contacted.
 - `ai.use_cases` (list[str], default `[]`) — subset of
   ["headings","codeblocks","captions","noise","tables"].
 
-Azure-specific keys:
+GitHub Models (dev) keys:
+- `ai.github.model` (string)
+- `ai.github.api_key_env` (string; default `GITHUB_TOKEN`)
+
+Azure OpenAI (prod) keys:
 - `ai.azure.endpoint` (url)
 - `ai.azure.deployment` (string)
 - `ai.azure.api_version` (string)
 - `ai.azure.api_key_env` (string; env var name holding the key)
+
+Acceptance rules:
+
+- Apply only within stage‑specific safety rails:
+  - Figure caption AI resolves ties only; never overrides a clear heuristic winner.
+  - Noise AI may veto removals but must not expand removals.
+- Persist and reuse accepted AI decisions from cache unless
+  `ai.cache_mode=refresh`.
 
 # Cross reference (deduplicated; patterns empty = internal defaults)
 xref_enable: true
@@ -1432,8 +1451,8 @@ This taxonomy supersedes earlier minimal bullet list.
 ## 16. Security & Compliance
 
 - External network calls are permitted only to explicitly configured AI providers
-  (e.g., Azure OpenAI) when `ai.enabled=true`. All non-AI network calls remain
-  disallowed.
+  when `ai.enabled=true`. Supported providers: Azure OpenAI (production) and
+  GitHub Models (development). All non-AI network calls remain disallowed.
 - Determinism with AI: Use temperature=0, top_p=1; record provider deployment
   identifiers and `system_fingerprint` (when available). Persist AI decisions in
   a cache keyed by stable features to ensure re-run stability; cache refresh is
@@ -1496,11 +1515,31 @@ This taxonomy supersedes earlier minimal bullet list.
 
 - [ ] Error taxonomy: representative CONFIG/IO/PARSE cases produce documented
 
-   exit codes.
+  exit codes.
+- [ ] With `--ai` enabled, conversion remains deterministic (temperature=0,
+  cached decisions), respects safety rails, and falls back cleanly when
+  providers are unavailable.
+
+## 21. Dev/Prod AI Wiring & Defaults
+
+- Development (GitHub Models):
+  - Default `ai.provider=github_models`.
+  - Auth via `GITHUB_TOKEN` environment variable.
+  - Configure model via `ai.github.model`.
+  - Use read/write decision cache by default.
+
+- Production (Azure OpenAI):
+  - Default `ai.provider=azure_openai`.
+  - Auth via `AZURE_OPENAI_API_KEY`; configure `ai.azure.endpoint`,
+    `ai.azure.deployment`, `ai.azure.api_version`.
+  - Use read‑only cache by default; refresh via `ai.cache_mode=refresh` when
+    intentionally changing behavior.
+
+- Precedence: CLI flag → config file → environment default. All runs record
+  provider identifiers and cache keys for reproducibility.
 
 - [ ] Strict numbering mode aborts on duplicate chapter number or appendix
-
-   duplicate letter with exit 4.
+  duplicate letter with exit 4.
 
 - [ ] Config validation rejects invalid caption weight sums and bad appendix
 

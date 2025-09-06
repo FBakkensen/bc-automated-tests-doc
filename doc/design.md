@@ -20,16 +20,16 @@ optional online AI assistance when enabled.
 
 ```mermaid
 flowchart LR
-  A["PDF File"] --> B[Ingestion]
-  B --> C[Normalization]
-  C --> D["Line & Hyphen Repair"]
-  D --> E[Block Assembly]
-  E --> F["Heading Detection + Promotion"]
-  F --> G["Numbering & Appendix Detection"]
-  G --> H["Post-Processing (Slugs, XRefs, Captions, Footnotes, Noise Prune)"]
+  A["PDF File"] --> B["Ingestion"]
+  B --> C["Normalization"]
+  C --> D["Line and Hyphen Repair"]
+  D --> E["Block Assembly"]
+  E --> F["Heading Detection and Promotion"]
+  F --> G["Numbering and Appendix Detection"]
+  G --> H["Post-Processing: Slugs, XRefs, Captions, Footnotes, Noise"]
   H --> I["Tree Build"]
-  I --> J[Rendering]
-  J --> K["Export (Markdown, Images, Manifest, TOC)"]
+  I --> J["Rendering"]
+  J --> K["Export: Markdown, Images, Manifest, TOC"]
 ```
 
 ### 2.1 Stage Contract Table
@@ -128,9 +128,9 @@ classDiagram
     +parent: string
     +pages: tuple
   }
-  Span --> Block : grouped
-  Block --> SectionNode : attached
-  SectionNode --> SectionNode : hierarchy
+  Span --> Block : "grouped"
+  Block --> SectionNode : "attached"
+  SectionNode --> SectionNode : "hierarchy"
 ```
 
 ### 3.1 Entity Field Summary
@@ -214,11 +214,11 @@ sequenceDiagram
   participant C as Classifier
   participant T as TreeBuilder
   H->>C: Provide font_size, style_flags, text
-  C-->>H: Level assignment / reject
-  C->>T: Promote (title, level)
+  C-->>H: Level assignment or reject
+  C->>T: Promote title and level
   T->>T: Normalize numbers
-  T->>T: Insert node (pre-order)
-  T->>T: Demote orphan? (scan following blocks)
+  T->>T: Insert node pre-order
+  T->>T: Demote orphan if needed
 ```
 
 For full detection order, data attachment, error/edge handling, and testing: See
@@ -275,16 +275,16 @@ PRD Section 10.5 [prd.md#L322](prd.md#L322).
 
 ```mermaid
 flowchart TD
-  A[Figure bbox] --> B[Collect caption candidates]
-  B --> C[Filter by distance <= threshold]
-  C --> D[Compute components]
-  D --> E[Weighted sum]
-  E --> J[Compute score & tie-break]
-  J --> F{Tie?}
-  F -- Yes --> G[Tie-break chain]
-  F -- No --> H[Select]
+  A["Figure bbox"] --> B["Collect caption candidates"]
+  B --> C["Filter by distance threshold"]
+  C --> D["Compute components"]
+  D --> E["Weighted sum"]
+  E --> J["Compute score and tie-break"]
+  J --> F{"Tie?"}
+  F -- Yes --> G["Tie-break chain"]
+  F -- No --> H["Select"]
   G --> H
-  H --> I[Assign caption + confidence]
+  H --> I["Assign caption and confidence"]
 ```
 
 ## 7. Cross-Reference Normalization (XRef)
@@ -295,13 +295,13 @@ annotate|keep|drop. Limit per section: `xref_max_per_section`.
 
 ```mermaid
 sequenceDiagram
-  participant S as Section Text
-  participant R as Regex Engine
-  participant L as Link Resolver
+  participant S as SectionText
+  participant R as RegexEngine
+  participant L as LinkResolver
   S->>R: Scan patterns ordered
   R-->>S: Match spans
-  S->>L: Candidate (type, key, text)
-  L->>L: Resolve slug (map key)
+  S->>L: Candidate type, key, text
+  L->>L: Resolve slug map key
   L-->>S: Markdown link or unresolved policy
 ```
 
@@ -565,36 +565,44 @@ for m in non_overlap:
 OCR for scanned PDFs, semantic figure deduplication, glossary extraction, math
 LaTeX reconstruction.
 
-## 12. AI Integration (Azure OpenAI)
+## 12. AI Integration (GitHub Models for Dev, Azure OpenAI for Prod)
 
-Goal: Allow optional AI assistance using hosted models while preserving
-determinism, privacy, and graceful degradation when unavailable.
+Goal: Optional AI assistance to reduce conversion errors while preserving determinism, privacy, and graceful degradation when unavailable.
 
-- Providers: `azure_openai` (first-class). Additional providers may be added
-  later behind the same interface.
-- Call points (optional, gated by config):
-  - Heading disambiguation (after heading candidate detection).
-  - Code block boundary refinement.
-  - Figure–caption scoring tie-breaks.
-  - Noise classification (headers/footers).
-- Determinism: Use temperature=0, top_p=1; record `system_fingerprint`
-  (provider) and deployment identifiers. Persist advisor decisions in an
-  on-disk cache keyed by a stable feature hash; subsequent runs reuse cached
-  decisions unless `ai.cache_mode=refresh`. Heuristic result remains the
-  source of truth when AI confidence is below threshold.
-- Privacy: Minimize payloads. Prefer feature vectors or short snippets. Support
-  optional redaction of digits/emails/URIs. Never send full PDF content.
-- Failure handling: Timeouts, bounded retries, and fast fallback to pure
-  heuristics. Network failures never abort unless `ai.fail_on_error=true`.
-- Observability: Log per-call metadata (provider, deployment, tokens used,
-  latency, decision accepted/ignored) at INFO; redact content by default.
-- Cost/latency budgets: Enforce request and total budgets; degrade to heuristics
-  when limits are reached.
+- Providers (behind a single interface):
+  - `github_models` (development): GitHub Models API for local/dev usage.
+  - `azure_openai` (production): Azure OpenAI with named deployments.
+- Call points (optional, gated by config and budgets):
+  - Heading disambiguation after heading candidate detection.
+  - Code block boundary refinement for borderline regions.
+  - Figure–caption tie‑break resolution only on ties.
+  - Noise classification guardrails near thresholds (prefer preventing false positives).
+- Determinism: temperature=0, top_p=1; record provider `system_fingerprint`/deployment. Persist decisions to an on‑disk cache keyed by stable feature hash. Reuse unless `ai.cache_mode=refresh`. Heuristics remain source of truth when AI confidence < threshold.
+- Privacy: Minimize payloads (features/snippets), optional redaction of digits/emails/URIs. Never send full page text.
+- Failure handling: Timeouts, bounded retries, fast fallback to pure heuristics. Never abort on network errors unless `ai.fail_on_error=true`.
+- Observability: Log per‑call metadata (provider, model/deployment, tokens, latency, accepted) at INFO; redact content by default.
+- Budgets: Enforce per‑stage request and total budgets; degrade to heuristics when limits reached.
 
-Config keys (see PRD for canonical list):
+Interface (conceptual):
+
+```python
+class AIProvider(Protocol):
+    def complete_json(self, task: str, schema: dict, payload: dict) -> dict: ...
+
+class GithubModelsProvider(AIProvider): ...
+class AzureOpenAIProvider(AIProvider): ...
+```
+
+Dev vs Prod wiring:
+
+- Development default: `ai.provider=github_models`; use `GITHUB_TOKEN` via env; model selectable with `ai.github.model`.
+- Production default: `ai.provider=azure_openai`; use `AZURE_OPENAI_API_KEY`, `ai.azure.endpoint`, `ai.azure.deployment`, `ai.azure.api_version`.
+- Selection precedence: CLI flag → config file → environment defaults.
+
+Config keys (consolidated; see PRD for canonical list):
 
 - `ai.enabled` (bool, default false)
-- `ai.provider` (enum: azure_openai)
+- `ai.provider` (enum: github_models|azure_openai)
 - `ai.min_confidence` (float, default 0.85)
 - `ai.cache_dir` (path, default `.ai-cache` in output root)
 - `ai.cache_mode` (enum: read_write|readonly|refresh; default read_write)
@@ -604,13 +612,32 @@ Config keys (see PRD for canonical list):
 - `ai.temperature` (float, default 0.0)
 - `ai.top_p` (float, default 1.0)
 - `ai.redact_snippets` (bool, default true)
+- `ai.github.model` (string)
+- `ai.github.api_key_env` (string, default `GITHUB_TOKEN`)
 - `ai.azure.endpoint` (url)
 - `ai.azure.deployment` (string)
 - `ai.azure.api_version` (string)
-- `ai.azure.api_key_env` (string, name of env var holding key)
+- `ai.azure.api_key_env` (string, default `AZURE_OPENAI_API_KEY`)
 
-CLI flags (planned): `--ai`, `--ai-provider azure-openai`,
-`--ai-cache-mode <mode>`, `--ai-min-confidence <x>`.
+CLI flags:
+- `--ai` (enable), `--ai-provider {github-models,azure-openai}`
+- `--ai-cache-mode {read_write,readonly,refresh}`, `--ai-min-confidence <x>`
+
+Acceptance policy (per call type):
+- Heading: accept only if `is_heading` true AND `level ∈ {1..6}` AND `confidence ≥ ai.min_confidence`.
+- Code boundary: accept `is_code` + span if it expands/aligns with heuristic by ≤ safe delta; attach `language_hint` if provided.
+- Figure caption: only resolve ties; never override clear heuristic winner.
+- Noise: only to veto removal (prevent false positives), not to expand removals.
+
+Caching & determinism:
+- Cache key includes: stage, PDF id, page range, bbox, normalized text/features, model/deployment id, relevant config. Temperature=0.
+- Store advisory outputs as small JSON blobs; replays avoid network.
+
+Structured prompts (shape only; JSON‑only responses enforced):
+- Heading: input {text, font_size, style_flags, bbox, tier_rank, neighbor_titles}; schema {is_heading: bool, level: int|null, confidence: float, reason}.
+- Code: input {lines:[{text, mono, indent}], thresholds}; schema {is_code: bool, start:int, end:int, language_hint?:str, confidence}.
+- Caption tie‑break: input {candidates:[{pattern, position, distance, font, score}]}; schema {index:int, confidence}.
+- Noise guard: input {text, freq_ratio, y_band, samples}; schema {action:"keep"|"drop", confidence}.
 
 ## 16. Security Notes
 

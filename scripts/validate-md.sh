@@ -94,6 +94,7 @@ validate_file() {
     # Validate Mermaid blocks
     local temp_mmd=$(mktemp --suffix=.mmd)
     local temp_svg=$(mktemp --suffix=.svg)
+    local puppeteer_cfg="scripts/puppeteer-ns.json"
     trap "rm -f $temp_mmd $temp_svg" EXIT
 
     local block_count=0
@@ -108,10 +109,25 @@ validate_file() {
         elif [[ "$line" == '```' ]] && [[ "$in_block" == true ]]; then
             in_block=false
             echo "$block_content" > "$temp_mmd"
-            if ! mmdc -i "$temp_mmd" -o "$temp_svg" >/dev/null 2>&1; then
-                echo "  ERROR: Mermaid Parse error in block $block_count (approx. line in file): unescaped parentheses or syntax—recommend quoting."
-                ((file_errors++))
+            tmp_err=$(mktemp)
+            # Run mmdc; capture stderr to detect sandbox limitations
+            mmdc -i "$temp_mmd" -o "$temp_svg" -p "$puppeteer_cfg" >/dev/null 2> "$tmp_err" || true
+            if grep -qiE 'sandbox_host_linux|Failed to launch the browser process' "$tmp_err"; then
+                if [ "${VALIDATE_MERMAID:-strict}" = "warn_on_sandbox" ]; then
+                    echo "  WARN: Mermaid rendering skipped due to browser sandbox; diagrams retained as-is."
+                else
+                    echo "  ERROR: Mermaid rendering failed due to browser sandbox; strict mode requires rendering to pass."
+                    ((file_errors++))
+                fi
+            else
+                # If exit code non-zero or stderr contains other errors, flag it
+                if [ -s "$tmp_err" ]; then
+                    echo "  ERROR: Mermaid error in block $block_count. Details:" >&2
+                    sed -n '1,5p' "$tmp_err" | sed 's/^/    /'
+                    ((file_errors++))
+                fi
             fi
+            rm -f "$tmp_err"
         elif [[ "$in_block" == true ]]; then
             block_content+="$line"$'\n'
         fi

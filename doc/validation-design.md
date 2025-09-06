@@ -45,14 +45,14 @@ validation, it extracts and isolates diagrams before processing.
 
 ```mermaid
 flowchart TD
-    A["Input MD File"] --> B["Parse & Extract (Pandoc/Markdownlint)"]
-    B --> C{Mermaid Diagrams?}
-    C -->|Yes| D["Extract & Validate Diagrams (mmdc)"]
-    C -->|No| E["Lint GFM Syntax (markdownlint)"]
-    D --> F["Reinsert & Full Render Test (Pandoc to HTML)"]
+    A["Input MD File"] --> B["Parse and Extract: Pandoc and markdownlint"]
+    B --> C{"Mermaid Diagrams?"}
+    C -->|Yes| D["Extract and Validate: Mermaid CLI"]
+    C -->|No| E["Lint GFM Syntax: markdownlint"]
+    D --> F["Reinsert and Full Render: Pandoc to HTML"]
     E --> F
-    F --> G["Error Aggregation & Reporting"]
-    G --> H["Output: Valid/Fail with Fixes"]
+    F --> G["Error Aggregation and Reporting"]
+    G --> H["Output: Valid or Fail with Fixes"]
     style A fill:#f9f,stroke:#333
     style H fill:#bbf,stroke:#333
 ```
