@@ -11,7 +11,7 @@ watermarks), preserves logical structure (parts, chapters, sections, code
 listings, tables, callouts), and extracts embedded images (diagrams, figures)
 while keeping references consistent.
 
-<!-- markdownlint-disable MD013 MD012 MD032 MD022 MD058 MD024 -->
+<!-- markdownlint-disable MD013 MD012 MD058 MD024 -->
 
 Primary objective: High-fidelity, human-editable Markdown with minimal post-
 processing.
@@ -208,25 +208,34 @@ output/
    size, style, page number).
 
 1. Heading Detection:
+
 - Use font size clustering + bold/uppercase heuristics.
 - Numeration patterns: `Part I`, `Chapter 2`, `1.2.3`, `Appendix A`.
 - Build hierarchical tree preserving order.
+
 1. Paragraph Assembly:
+
 - Merge line fragments by proximity and hyphenation resolution.
 - Preserve intentional blank lines (e.g., before code or lists).
+
 1. List Detection:
+
 - Recognize bullets (`•`, `-`, `*`) and ordered patterns (`1.`, `a)`, `(i)`),
 
      indent-based nesting (x-offset deltas).
 
 1. Code Block Extraction:
+
 - Detect multi-line monospaced or indented regions; maintain whitespace
 
      faithfully.
 
 1. Inline Code:
+
 - Short monospaced spans embedded in regular paragraphs -> wrap in backticks.
+
 1. Image Extraction:
+
 - Export vector and raster objects where possible (fallback: page raster cropping around figure region if compound grouping is detected).
 
 - Associate nearest preceding or following caption (pattern: `Figure \d+:` or
@@ -234,12 +243,15 @@ output/
 italic smaller font) and store in alt text.
 
 1. Table Reconstruction:
+
 - Detect ruled lines or column-aligned text boxes (grid inference via
 
 x-coordinate clustering).
 
 - Output Markdown table; fallback to preformatted fenced block if ambiguous.
+
 1. Footnotes:
+
 - Detect superscript markers and trailing page footnote region based on
 
 y-position at page bottom. 10. Cross-Reference Normalization:
@@ -596,6 +608,7 @@ replace defaults entirely.
    page else ignored (`appendix_missing_page_break`).
 
 1. Hierarchical Level: Controlled by `appendix_level`:
+
 - `chapter` (default) – Appendices share level with chapters.
 - `part` – Treat appendices as top-level peers to Parts (affects `level`
 
@@ -693,11 +706,13 @@ text block.
 
 - Figure candidate: bbox + page.
 - Caption candidates (same page) if:
+
 1. Regex `figure_caption_pattern` (default `^(Figure|Fig\.)`, case-
 
       insensitive) at start.
 
 1. OR smaller than median body font AND italic, within distance threshold.
+
 - Distance threshold: `figure_caption_distance` (default 150px) edge-to-edge.
 
 
@@ -796,6 +811,7 @@ reference type.
    overlapping matches (leftmost-first, longest-first within same start index).
 
 1. Normalize target key:
+
 - Chapter: integer N → find SectionNode with level=1 (or classification
 
      policy) whose sequential chapter index == N.
@@ -820,12 +836,14 @@ reference type.
    chapters/sections use section slug.
 
 1. If unresolved: apply `xref_unresolved_policy`:
+
 - `keep`: leave original text unchanged.
 - `annotate` (default): append `[‡]` and log at INFO once per distinct
 
      unresolved normalized key; no manifest entry.
 
 - `drop`: remove only the match token (leave surrounding text).
+
 1. Limit: If resolved references for a single SectionNode exceed
 
    `xref_max_per_section`, stop further resolution in that node (log rate-limit
@@ -965,6 +983,7 @@ prevent accidental hyphen merging across noise boundaries.
    total_pages`.
 
 1. Mark as removable if:
+
 - Ratio >= `noise_min_repetition_ratio` AND
 - Length < `noise_max_chars` AND
 - Not matched by allowlist regexes (`noise_keep_patterns`) AND
