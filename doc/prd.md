@@ -11,7 +11,7 @@ watermarks), preserves logical structure (parts, chapters, sections, code
 listings, tables, callouts), and extracts embedded images (diagrams, figures)
 while keeping references consistent.
 
-<!-- markdownlint-disable MD013 MD012 MD032 MD022 MD058 MD024 MD029 MD038 -->
+<!-- markdownlint-disable MD013 MD012 MD032 MD022 MD058 MD024 -->
 
 Primary objective: High-fidelity, human-editable Markdown with minimal post-
 processing.
@@ -821,7 +821,7 @@ reference type.
 
 1. If unresolved: apply `xref_unresolved_policy`:
 - `keep`: leave original text unchanged.
-- `annotate` (default): append ` [‡]` and log at INFO once per distinct
+- `annotate` (default): append `[‡]` and log at INFO once per distinct
 
      unresolved normalized key; no manifest entry.
 
