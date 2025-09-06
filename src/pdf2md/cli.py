@@ -1,5 +1,6 @@
 from __future__ import annotations
 import typer
+import sys
 from pathlib import Path
 from .config import ToolConfig
 import json
@@ -16,11 +17,21 @@ def convert(pdf_path: Path, out: Path = typer.Option(..., dir_okay=True, file_ok
     cfg = ToolConfig()
     if config:
         cfg = ToolConfig.from_file(str(config))
-    # placeholder logic
-    typer.echo(f"[dry] Parsed config: {cfg.model_dump()}")
-    typer.echo("Conversion logic not yet implemented.")
-    if manifest:
-        (out / "manifest.json").write_text(json.dumps({"status": "stub"}, indent=2), encoding="utf-8")
+    # Echo config
+    typer.echo(f"Config loaded: {cfg.model_dump_json(indent=2)}")
+    # Write partial manifest.json
+    manifest_data = {
+        "version": "0.1.0",
+        "source_pdf": str(pdf_path),
+        "output_dir": str(out),
+        "config": cfg.model_dump(),
+        "status": "stubbed",
+        "structural_hash": "TBD"
+    }
+    manifest_path = out / "manifest.json"
+    with open(manifest_path, 'w') as f:
+        json.dump(manifest_data, f, indent=2)
+    typer.echo("Stubbed conversion complete: partial manifest written.")
 
 @app.command("dry-run")
 def dry_run(pdf_path: Path, max_pages: int | None = None, config: Path | None = None):
