@@ -1,0 +1,39 @@
+name: Validate Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'doc/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'doc/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install npm tools
+      run: |
+        npm install -g @mermaid-js/mermaid-cli markdownlint-cli
+
+    - name: Install pandoc
+      run: sudo apt-get update && sudo apt-get install -y pandoc
+
+    - name: Run Markdown validation
+      run: bash scripts/validate-md.sh doc/*.md

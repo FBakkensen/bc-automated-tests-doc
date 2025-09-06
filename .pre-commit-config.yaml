@@ -1,0 +1,23 @@
+# See https://pre-commit.com/hooks.html for more information
+# See https://pre-commit.com/docs/repositories_for_policies.html for more information
+
+default_language_version:
+    python: python3
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: local
+    hooks:
+      - id: validate-md
+        name: Validate Markdown and Mermaid
+        entry: bash scripts/validate-md.sh
+        language: system
+        files: ^doc/.*\.md$
+        pass_filenames: true
