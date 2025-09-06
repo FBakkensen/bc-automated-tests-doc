@@ -97,3 +97,16 @@ For implementation details, see [doc/validation-design.md](doc/validation-design
   - `ruff check` – zero findings (E, F, B, I ruleset)
   - `mypy` – no type errors (project baseline; strictness may increase over time)
 - CI is configured to fail on any violation. Pre‑commit hooks should be used locally to catch issues early.
+
+## Pre-Commit Hooks (Standard Framework)
+
+- This repo uses the pre-commit framework to run checks automatically on commit.
+- Setup (one-time per machine):
+  - `pip install pre-commit` (or `pip install .[dev]`)
+  - `pre-commit install`
+  - Optional: `pre-commit run --all-files` for a full first pass
+- Hooks included:
+  - Ruff format and lint; Mypy; core housekeeping hooks; documentation validator for `doc/` files.
+- Policy:
+  - Commits are blocked until hooks pass (zero warnings/errors). Fix issues or re-run after autofixes.
+  - Documentation validation runs as a post-change requirement and may require elevated permissions depending on environment; ensure required tools are installed.
