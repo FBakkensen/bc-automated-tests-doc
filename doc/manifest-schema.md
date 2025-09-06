@@ -1,6 +1,6 @@
 # Manifest Schema Specification
 
-<!-- markdownlint-disable MD013 -->
+<!-- markdownlint-disable  -->
 
 This document defines the canonical manifest schema for the pdf2md tool,
 extracted and normative from the PRD. It includes the top-level shape, field
