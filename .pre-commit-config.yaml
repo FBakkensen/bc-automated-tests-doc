@@ -34,3 +34,9 @@ repos:
         language: system
         files: ^doc/.*\.md$
         pass_filenames: true
+      - id: pytest
+        name: Run unit tests (pytest -q)
+        entry: pytest -q
+        language: system
+        pass_filenames: false
+        stages: [commit]

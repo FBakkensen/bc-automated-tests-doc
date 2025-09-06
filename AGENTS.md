@@ -106,7 +106,7 @@ For implementation details, see [doc/validation-design.md](doc/validation-design
   - `pre-commit install`
   - Optional: `pre-commit run --all-files` for a full first pass
 - Hooks included:
-  - Ruff format and lint; Mypy; core housekeeping hooks; documentation validator for `doc/` files.
+  - Ruff format and lint; Mypy; unit tests via `pytest -q`; core housekeeping hooks; documentation validator for `doc/` files.
 - Policy:
   - Commits are blocked until hooks pass (zero warnings/errors). Fix issues or re-run after autofixes.
   - Documentation validation runs as a post-change requirement and may require elevated permissions depending on environment; ensure required tools are installed.
