@@ -11,8 +11,6 @@ watermarks), preserves logical structure (parts, chapters, sections, code
 listings, tables, callouts), and extracts embedded images (diagrams, figures)
 while keeping references consistent.
 
-<!-- markdownlint-disable MD013 -->
-
 Primary objective: High-fidelity, human-editable Markdown with minimal post-
 processing.
 
@@ -74,6 +72,7 @@ AI assistance when enabled.
 
 Canonical directory structure (example for a book with Parts & Chapters):
 
+<!-- markdownlint-disable MD013 -->
 ```text
 output/
    book/
@@ -92,6 +91,7 @@ output/
    manifest.json
    toc.yml   (optional)
 ```
+<!-- markdownlint-enable MD013 -->
 
 #### File Naming Policy
 
@@ -230,12 +230,13 @@ output/
 - Short monospaced spans embedded in regular paragraphs -> wrap in backticks.
 
 1. Image Extraction:
-
+<!-- markdownlint-disable MD013 -->
 - Export vector and raster objects where possible (fallback: page raster cropping around figure region if compound grouping is detected).
 
 - Associate nearest preceding or following caption (pattern: `Figure \d+:` or
 
 italic smaller font) and store in alt text.
+<!-- markdownlint-enable MD013 -->
 
 1. Table Reconstruction:
 
@@ -312,6 +313,7 @@ Layers:
 
 Core Data Classes (conceptual):
 
+<!-- markdownlint-disable MD013 -->
 ```text
 Span {text, bbox, font_name, font_size, style_flags, page}
 Node {type, children, meta}
@@ -320,6 +322,7 @@ CodeBlock {language, lines, page_span}
 Table {rows, page_span, confidence}
 ManifestEntry {slug, title, level, file, parent, pages}
 ```
+<!-- markdownlint-enable MD013 -->
 
 ### 9.1 Canonical Data Model & Transformation Contracts
 
@@ -362,6 +365,7 @@ SectionNodes).
 
 #### 9.1.2 Stage Contracts
 
+<!-- markdownlint-disable MD013 -->
 | Stage | Input | Output | Allowed Mutations | Disallowed Actions |
 |-------|-------|--------|-------------------|--------------------|
 | Ingestion | PDF bytes/pages | Raw layout artifacts | None (stream only) | Reordering, semantic inference |
@@ -373,6 +377,7 @@ SectionNodes).
 | Rendering | Final tree | Markdown strings + assets | Formatting, escaping, deterministic file naming | Injecting runtime timestamps, nondeterministic UUIDs |
 
 #### 9.1.3 Determinism & Purity Rules
+<!-- markdownlint-enable MD013 -->
 
 1. Spans are assigned a global `order_index` strictly increasing by page then
 
@@ -1008,7 +1013,8 @@ prevent accidental hyphen merging across noise boundaries.
 
 #### 10.X.8 Testing
 
-- Unit: synthetic pages with variable header/footer repetition to test threshold boundaries.
+- Unit: synthetic pages with variable header/footer repetition to test
+  threshold boundaries.
 
 - Property: page permutation does not change removal set.
 - Regression: snapshot of dry-run noise removal proposal for fixture.
@@ -1140,6 +1146,7 @@ xref_resolve_appendices: false
 xref_patterns: []
 
 ### 12.1 Configuration Reference Table
+<!-- markdownlint-disable MD013 -->
 | Key | Type | Default | Description | Fatal Validation Condition |
 |-----|------|---------|-------------|----------------------------|
 | font_cluster_epsilon | float | 1.0 | Max diff to merge font tiers | <=0 |
@@ -1192,8 +1199,11 @@ xref_patterns: []
 | appendix_requires_page_break | bool | true | Enforce page break rule | n/a |
 | appendix_level | enum | chapter | Appendix hierarchy level | invalid enum |
 | numbering_error_strict | bool | false | Escalate numbering anomalies | n/a |
+<!-- markdownlint-enable MD013 -->
 
+<!-- markdownlint-disable MD013 -->
 Weight Sum Validation: sum(figure_caption_weight_*) MUST equal 1 ±1e-6 else `config_weight_sum_invalid` (exit 2). Deprecated key `linkify_cross_references` triggers a warning and is ignored if `xref_enable` explicitly set; if only deprecated key present the tool maps it to `xref_enable` for backward compatibility (no fatal).
+<!-- markdownlint-enable MD013 -->
 numbering_validate_gaps: true
 numbering_allow_chapter_resets: false
 numbering_max_depth: 6
@@ -1379,9 +1389,11 @@ fallback notices.
 
 When emitting a fatal error (and `--debug-json-errors` set) the tool prints JSON:
 
+<!-- markdownlint-disable MD013 -->
 ```text
 {"category":"CONFIG","code":"config_weight_sum_invalid","message":"Figure caption weights sum 0.93 != 1.0","context":{"sum":0.93,"weights":[0.35,0.25,0.25,0.08]}}
 ```
+<!-- markdownlint-enable MD013 -->
 
 `context` keys must be deterministic primitive scalars/arrays.
 
@@ -1441,6 +1453,7 @@ This taxonomy supersedes earlier minimal bullet list.
 
 ## 18. Risks & Mitigations
 
+<!-- markdownlint-disable MD013 -->
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | Inconsistent PDF structure | Misclassification | Provide manual override config + debug dumps |
@@ -1451,6 +1464,7 @@ This taxonomy supersedes earlier minimal bullet list.
 | Ambiguous heading levels | Incorrect nesting | Font cluster epsilon + manual overrides |
 
 ## 19. Roadmap (Future Enhancements)
+<!-- markdownlint-enable MD013 -->
 
 - Batch processing directory mode.
 - Web UI (FastAPI) with preview diff.
