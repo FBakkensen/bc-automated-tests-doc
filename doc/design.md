@@ -1,28 +1,34 @@
 # pdf2md Design Specification (AI-Optimized)
 
-Version: 0.1
-Source Basis: PRD distilled into structured, machine-friendly form.
+Version: 0.1 Source Basis: PRD distilled into structured, machine-friendly form.
 
 ## 1. Purpose
-Convert technical, text-based PDFs into a deterministic, multi-file, semantically structured Markdown corpus (chapters, sections, lists, code, tables, figures, footnotes, manifest, optional TOC) with high fidelity and idempotent output.
+
+Convert technical, text-based PDFs into a deterministic, multi-file,
+semantically structured Markdown corpus (chapters, sections, lists, code,
+tables, figures, footnotes, manifest, optional TOC) with high fidelity and
+idempotent output.
 
 ## 2. High-Level Pipeline
 
 ```mermaid
 flowchart LR
-  A[PDF File] --> B[Ingestion]
+  A["PDF File"] --> B[Ingestion]
   B --> C[Normalization]
-  C --> D[Line & Hyphen Repair]
+  C --> D["Line & Hyphen Repair"]
   D --> E[Block Assembly]
-  E --> F[Heading Detection + Promotion]
-  F --> G[Numbering & Appendix Detection]
+  E --> F["Heading Detection + Promotion"]
+  F --> G["Numbering & Appendix Detection"]
   G --> H["Post-Processing (Slugs, XRefs, Captions, Footnotes, Noise Prune)"]
-  H --> I[Tree Build]
+  H --> I["Tree Build"]
   I --> J[Rendering]
-  J --> K[Export (Markdown, Images, Manifest, TOC)]
+  J --> K["Export (Markdown, Images, Manifest, TOC)"]
 ```
 
 ### 2.1 Stage Contract Table
+
+<!-- markdownlint-disable MD013 -->
+
 | Stage | Input | Output | Primary Ops | Side Effects | Purity Level |
 |-------|-------|--------|-------------|--------------|--------------|
 | Ingestion | PDF bytes/pages | Raw layout objs | Extract glyphs, bbox, font | None | Pure |
@@ -35,17 +41,25 @@ flowchart LR
 | Rendering | Final tree | Markdown strings | Serialize blocks, file naming | Writes files | Deterministic (I/O) |
 | Export | Render output | Manifest, TOC | Structural hash, asset copy | Writes JSON/YAML | Deterministic (I/O) |
 
+<!-- markdownlint-enable MD013 -->
+
 ### 9.1 TOC Generation
 
-The Table of Contents (TOC) is generated as a deterministic YAML projection of the manifest sections. It extracts entries with `title` and `file` from each ManifestEntry, ordered by pre-order `order_index`. Appendices are positioned after chapters in the traversal.
+The Table of Contents (TOC) is generated as a deterministic YAML projection of
+the manifest sections. It extracts entries with `title` and `file` from each
+ManifestEntry, ordered by pre-order `order_index`. Appendices are positioned
+after chapters in the traversal.
 
 **Key Invariants:**
+
 - Deterministic via `order_index` sorting for consistent re-run output.
 - Includes only sections where `level <= numbering_max_depth`.
-- Excludes semantic elements like cross_references to preserve structural idempotency.
+- Excludes semantic elements like cross_references to preserve structural
+  idempotency.
 
 **Pseudo-Algorithm:**
-```
+
+```text
 Traverse SectionNodes in pre-order using order_index;
 for each node:
     if node.level <= config.numbering_max_depth:
@@ -53,50 +67,69 @@ for each node:
 Appendices (level == appendix_level) follow chapters per order_index.
 ```
 
-See PRD [line 73](prd.md#L73) for optional generation via --toc and YAML structure for MkDocs.
+See PRD [line 73](prd.md#L73) for optional generation via --toc and YAML
+structure for MkDocs.
 
 ## 3. Core Data Model
 
 ```mermaid
 classDiagram
   class Span {
-    +str text
-    +float font_size
-    +tuple bbox (x0,y0,x1,y1)
-    +str font_name
-    +set style_flags
-    +int page
-    +int order_index
-    +int? line_id
+    +text: string
+    +font_size: float
+    +bbox: tuple
+    +font_name: string
+    +style_flags: set
+    +page: int
+    +order_index: int
+    +line_id: int?
   }
   class Block {
-    +str block_type
-    +list[Span] spans
-    +tuple bbox
-    +tuple page_span
-    +dict meta
+    +block_type: string
+    +spans: Span[]
+    +bbox: tuple
+    +page_span: tuple
+    +meta: dict
   }
   class Callout {
-    +str label
+    +label: string
   }
   Callout --|> Block
   class SectionNode {
-    +str title
-    +int level
-    +str? slug
-    +list[Block] blocks
-    +list[SectionNode] children
-    +tuple pages
-    +dict meta
+    +title: string
+    +level: int
+    +slug: string?
+    +blocks: Block[]
+    +children: SectionNode[]
+    +pages: tuple
+    +meta: dict
   }
-  class Figure {+id +slug +image_path +caption +confidence +bbox +page}
-  class ManifestEntry {+slug +title +level +file +parent +pages}
+  class Figure {
+    +id: string
+    +slug: string
+    +image_path: string
+    +caption: string
+    +confidence: float
+    +bbox: tuple
+    +page: int
+  }
+  class ManifestEntry {
+    +slug: string
+    +title: string
+    +level: int
+    +file: string
+    +parent: string
+    +pages: tuple
+  }
   Span --> Block : grouped
   Block --> SectionNode : attached
   SectionNode --> SectionNode : hierarchy
 ```
 
 ### 3.1 Entity Field Summary
+
+<!-- markdownlint-disable MD013 -->
+
 | Entity | Required Fields | Key Invariants |
 |--------|-----------------|----------------|
 | Span | text, bbox, font_name, font_size, style_flags, page, order_index | order_index strictly increasing |
@@ -106,34 +139,55 @@ classDiagram
 | Figure | id, image_path, page | id monotonic, caption optional |
 | ManifestEntry | slug, file | Slug unique global |
 
-### 3.2 Block Types
-Paragraph, List, ListItem, Callout, CodeBlock, Table, FigurePlaceholder, FootnotePlaceholder, HeadingCandidate, EmptyLine, RawNoise.
+<!-- markdownlint-enable MD013 -->
 
-**Note:** Callouts map to Markdown blockquotes with the label, e.g., "> **Note:** ...". See PRD [line 89](prd.md#L89) for details on PRD cross-reference.
+### 3.2 Block Types
+
+Paragraph, List, ListItem, Callout, CodeBlock, Table, FigurePlaceholder,
+FootnotePlaceholder, HeadingCandidate, EmptyLine, RawNoise.
+
+**Note:** Callouts map to Markdown blockquotes with the label, e.g., ">
+**Note:** ...". See PRD [line 89](prd.md#L89) for details on PRD cross-
+reference.
 
 ## 4. Determinism Rules (Canonical)
-1. Global Span ordering stable (page order → y → x or extractor intrinsic; captured in order_index).
+
+1. Global Span ordering stable (page order → y → x or extractor intrinsic;
+   captured in order_index).
 2. All sorting explicit (order_index, numeric suffix, lexicographic fallback).
-3. Slug = prefix(index, width) + slugified title; index from pre-order traversal ignoring demoted headings.
+3. Slug = prefix(index, width) + slugified title; index from pre-order traversal
+   ignoring demoted headings.
 4. No random/clock/time usage; no unordered set iteration without sorting.
-5. Structural hash excludes late-link cross references, resolved links, policies, and tool/version metadata to ensure core idempotency of the document structure.
+5. Structural hash excludes late-link cross references, resolved links,
+   policies, and tool/version metadata to ensure core idempotency of the
+   document structure.
 6. Noise removal bounded by threshold; abort if drop ratio > configured maximum.
 7. Caption scoring weight vector must sum to 1 ±1e-6 else CONFIG error.
 8. Duplicate non-resolvable slugs → PARSE error -> abort.
-9. Semantic hash (SHA-256 over a projection including cross_references, resolved links, and policies) ensures integrity of semantic enrichments like link resolution.
+9. Semantic hash (SHA-256 over a projection including cross_references, resolved
+   links, and policies) ensures integrity of semantic enrichments like link
+   resolution.
 
-10. TOC serialization mirrors manifest pre-order, ensuring identical output on re-run; excludes semantic elements like cross_references.
+10. TOC serialization mirrors manifest pre-order, ensuring identical output on
+re-run; excludes semantic elements like cross_references.
 
 ## 5. Heading & Numbering Logic (Condensed)
 
 ### 5.1 Normalization Rules
-Global chapter numbering increments without resets; log `chapter_number_reset_detected` and remap to N+1. Log `section_gap_detected` without renumbering. Handle duplicates as implicit sequence via `duplicate_chapter_number`.
+
+Global chapter numbering increments without resets; log
+`chapter_number_reset_detected` and remap to N+1. Log `section_gap_detected`
+without renumbering. Handle duplicates as implicit sequence via
+`duplicate_chapter_number`.
 
 ### 5.2 Config Integration
-Toggles: `numbering_allow_chapter_resets` (default false), `numbering_validate_gaps` (default true), `numbering_max_depth` (default 6).
+
+Toggles: `numbering_allow_chapter_resets` (default false),
+`numbering_validate_gaps` (default true), `numbering_max_depth` (default 6).
 
 ### 5.3 Pseudo-Algorithm
-```
+
+```text
 global_chapter = 0
 for heading in pre-order candidates:
     if matches Chapter N:
@@ -160,7 +214,8 @@ sequenceDiagram
   T->>T: Demote orphan? (scan following blocks)
 ```
 
-For full detection order, data attachment, error/edge handling, and testing: See PRD Section 10.2 [prd.md#L207](prd.md#L207).
+For full detection order, data attachment, error/edge handling, and testing: See
+PRD Section 10.2 [prd.md#L207](prd.md#L207).
 
 **Invariants:** No title mutation; roman to decimal internal only.
 
@@ -168,16 +223,21 @@ For full detection order, data attachment, error/edge handling, and testing: See
 
 ### 6.1 Scoring Components
 
-- **S_pattern**: 1 if the candidate text matches the caption prefix regex (e.g., "^(Figure|Fig\.)"), else 0.
-- **S_position**: 1 if the candidate is positioned below the figure, 0.6 if overlapping, 0.4 if above.
-- **S_distance**: Computed as \(1 - \frac{g}{\text{threshold}}\), where \(g\) is the vertical gap, clamped to ≥0.
-- **S_font**: 1 if the font size ≤ median font size * ratio (default 0.92) or if italic style is present, else 0.4.
+- **S_pattern**: 1 if the candidate text matches the caption prefix regex (e.g.,
+  "^(Figure|Fig\.)"), else 0.
+- **S_position**: 1 if the candidate is positioned below the figure, 0.6 if
+  overlapping, 0.4 if above.
+- **S_distance**: Computed as \(1 - \frac{g}{\text{threshold}}\), where \(g\) is
+  the vertical gap, clamped to ≥0.
+- **S_font**: 1 if the font size ≤ median font size * ratio (default 0.92) or if
+  italic style is present, else 0.4.
 
 Default weights: pattern=0.35, position=0.25, distance=0.25, font=0.15.
 
 ### 6.2 Tie-Breaking
 
 When scores tie (to 4 decimal places), apply the following hierarchy:
+
 1. Higher S_pattern (prefer regex matches).
 2. Smaller gap \(g\).
 3. Direction priority: below > above > overlap (mapped to ranks 1, 2, 3).
@@ -199,10 +259,12 @@ if scores tie (to 4 decimals): apply tie-break chain
 ```
 
 **Invariants:**
+
 - Weights sum to 1 ±1e-6; validate in config or raise CONFIG error.
 - Candidate ordering: (gap asc, direction_rank asc, order_index asc).
 
-For pre-filtering, edge cases (e.g., shared captions), logging, and testing: See PRD Section 10.5 [prd.md#L322](prd.md#L322).
+For pre-filtering, edge cases (e.g., shared captions), logging, and testing: See
+PRD Section 10.5 [prd.md#L322](prd.md#L322).
 
 ```mermaid
 flowchart TD
@@ -219,9 +281,10 @@ flowchart TD
 ```
 
 ## 7. Cross-Reference Normalization (XRef)
-Patterns (default ordered): Chapter, Section, Fig, Appendix variants.
-Non-overlapping longest-first at same index. Policies for unresolved: annotate|keep|drop.
-Limit per section: `xref_max_per_section`.
+
+Patterns (default ordered): Chapter, Section, Fig, Appendix variants. Non-
+overlapping longest-first at same index. Policies for unresolved:
+annotate|keep|drop. Limit per section: `xref_max_per_section`.
 
 ```mermaid
 sequenceDiagram
@@ -230,7 +293,7 @@ sequenceDiagram
   participant L as Link Resolver
   S->>R: Scan patterns ordered
   R-->>S: Match spans
-  S->>L: Candidate (type,key,text)
+  S->>L: Candidate (type, key, text)
   L->>L: Resolve slug (map key)
   L-->>S: Markdown link or unresolved policy
 ```
@@ -240,52 +303,77 @@ sequenceDiagram
 ### 8.1 Taxonomy and Detection
 
 Noise elements are classified based on location and repetition patterns:
-- Running headers/footers in top/bottom bands (defined by `noise_header_top_px` and `noise_footer_bottom_px`).
+
+- Running headers/footers in top/bottom bands (defined by `noise_header_top_px`
+  and `noise_footer_bottom_px`).
 - Page numbers matching the regex pattern `^(page\s+)?\d{1,4}$`.
 - High-frequency watermarks or copyright notices across pages.
 
-Detection focuses on normalized text frequency exceeding `noise_min_repetition_ratio` and length under `noise_max_chars`.
+Detection focuses on normalized text frequency exceeding
+`noise_min_repetition_ratio` and length under `noise_max_chars`.
 
 ### 8.2 Safety and Overrides
 
-- **Allowlist/Blocklist**: Use `noise_keep_patterns` (regex) to retain potential noise matches; `noise_drop_patterns` (regex) to force removal.
+- **Allowlist/Blocklist**: Use `noise_keep_patterns` (regex) to retain potential
+  noise matches; `noise_drop_patterns` (regex) to force removal.
 - **Dry-Run Summary**: Output JSON summary of detected noise spans for review.
-- **Abort Threshold**: If removals exceed `noise_max_drop_ratio` (e.g., 5%), raise `ParseError` with `'over_removal_abort'` to prevent excessive data loss.
+- **Abort Threshold**: If removals exceed `noise_max_drop_ratio` (e.g., 5%),
+  raise `ParseError` with `'over_removal_abort'` to prevent excessive data loss.
 
 ### 8.3 Pseudo-Algorithm
 
-```
+```text
 for page in pages:
     for span in page.spans:
         if in_band(span):  # top/bottom bands or other criteria
             norm = trim(lowercase(span.text))
             freq[norm] += 1
     ratio = freq[norm] / total_pages
-    if ratio >= min_repetition and len(norm) < max_chars and not keep_patterns.match(norm) and drop_patterns.match(norm):
-        mark_remove(span)
+```
+
+```text
+if ratio >= min_repetition and len(norm) < max_chars and not
+keep_patterns.match(norm) and drop_patterns.match(norm):
+    mark_remove(span)
 if total_remove / total_spans > max_drop:
     raise ParseError('over_removal_abort')
 ```
 
 **Invariants:**
+
 - Evaluation order: frequency analysis → blocklist check → allowlist check.
 - Executed after Normalization stage, before hyphen repair.
-- Deterministic: Relies on stable `order_index` and config parameters; no random operations.
+- Deterministic: Relies on stable `order_index` and config parameters; no random
+  operations.
 
-For full metrics, logging, and testing (e.g., synthetic pages): See PRD Section 10.X [`prd.md#L444`](prd.md#L444).
+For full metrics, logging, and testing (e.g., synthetic pages): See PRD Section
+10.X [`prd.md#L444`](prd.md#L444).
 
 ## 9. Manifest Schema
 
-See [doc/manifest-schema.md](manifest-schema.md) for the full canonical manifest schema.
+See [doc/manifest-schema.md](manifest-schema.md) for the full canonical manifest
+schema.
 
 ### Appendix: Hash Bifurcation (Structural vs. Semantic)
 
-The design emphasizes machine-friendly focus by distinguishing between structural_hash (for core idempotency of document hierarchy, excluding semantic enrichments like cross_references) and semantic_hash (for link integrity, including cross_references, resolved links, and policies). Inputs as defined in the canonical schema:
+The design emphasizes machine-friendly focus by distinguishing between
+structural_hash (for core idempotency of document hierarchy, excluding semantic
+enrichments like cross_references) and semantic_hash (for link integrity,
+including cross_references, resolved links, and policies). Inputs as defined in
+the canonical schema:
 
-- **Structural hash**: JSON(minimal projection: sections, figures, footnotes) serialized with sorted keys, no extra whitespace. Ensures stability for core structure validation.
-- **Semantic hash**: JSON(extended projection: sections, figures, footnotes, cross_references, resolved_links, policies) serialized with sorted keys, no extra whitespace. Verifies integrity of semantic enhancements.
+- **Structural hash**: JSON(minimal projection: sections, figures, footnotes)
+  serialized with sorted keys, no extra whitespace. Ensures stability for core
+  structure validation.
+- **Semantic hash**: JSON(extended projection: sections, figures, footnotes,
+  cross_references, resolved_links, policies) serialized with sorted keys, no
+  extra whitespace. Verifies integrity of semantic enhancements.
 
-This bifurcation addresses schema inconsistencies by retaining cross_references for completeness while excluding them from structural_hash to maintain idempotency. It promotes modularity, allowing independent validation of core structure (structural_hash) from post-processing (semantic_hash), enabling incremental updates without full recomputation.
+This bifurcation addresses schema inconsistencies by retaining cross_references
+for completeness while excluding them from structural_hash to maintain
+idempotency. It promotes modularity, allowing independent validation of core
+structure (structural_hash) from post-processing (semantic_hash), enabling
+incremental updates without full recomputation.
 
 ## 10. Error & Exit Codes
 
@@ -313,7 +401,7 @@ This bifurcation addresses schema inconsistencies by retaining cross_references 
 | WARN | - | appendix_duplicate_letter | Duplicate appendix letter | Non-fatal | Appendix Detection | Log and demote second to section |
 | WARN | - | xref_unresolved | Unresolved cross-reference | Non-fatal | Post-Processing | Apply policy (annotate/keep/drop) |
 
-```
+```python
 if error.category in ['CONFIG', 'IO', 'PARSE']:
     sys.exit(error.code)
 else:
@@ -321,11 +409,14 @@ else:
     continue  # or handle per policy
 ```
 
-**Note:** Full details, structured JSON objects, and escalation rules: See PRD Section 15 [prd.md#L791](prd.md#L791).
+**Note:** Full details, structured JSON objects, and escalation rules: See PRD
+Section 15 [prd.md#L791](prd.md#L791).
 
 ## 11. Configuration (Consolidated Keys)
 
-**Note:** The original keys listed first in the table below represent a Critical Subset focused on core heuristics. The full table integrates all configuration keys from PRD Section 12.1 for completeness.
+**Note:** The original keys listed first in the table below represent a Critical
+Subset focused on core heuristics. The full table integrates all configuration
+keys from PRD Section 12.1 for completeness.
 
 | Key | Type | Default | Validation | Impact |
 |-----|------|---------|------------|--------|
@@ -382,18 +473,21 @@ else:
 
 Weight Integrity: sum(figure_caption_weight_*) == 1 ±1e-6 or CONFIG error.
 
-Full reference and additional details (e.g., weight sum validation, deprecated keys): See PRD Section 12 [prd.md#L688](prd.md#L688).
+Full reference and additional details (e.g., weight sum validation, deprecated
+keys): See PRD Section 12 [prd.md#L688](prd.md#L688).
 
 ## 12. Algorithms (Pseudo)
 
 ### 12.1 Hyphen Repair
-```
+
+```python
 if line.endswith(regex([A-Za-z]{3,}-)) and next_line startswith lowercase:
     merged = line.rstrip('-') + next_line
 ```
 
 ### 12.2 List Nesting
-```
+
+```python
 for item in bullets:
   while indent < stack.top - tolerance: stack.pop()
   if indent > stack.top + tolerance: push new level
@@ -401,17 +495,20 @@ for item in bullets:
 ```
 
 ### 12.3 Code Block Detection
-```
+
+```python
 scan lines -> consecutive mono or indent>=threshold for >= code_min_lines -> fence
 ```
 
 ### 12.4 Caption Scoring
-```
+
+```python
 score(c) = w1*pattern + w2*position + w3*(1 - gap/threshold) + w4*font_flag
 ```
 
 ### 12.5 XRef Resolution
-```
+
+```python
 matches = ordered_patterns.scan(text)
 non_overlap = leftmost_longest(matches)
 for m in non_overlap:
@@ -422,6 +519,7 @@ for m in non_overlap:
 ```
 
 ## 13. Test Matrix (Abbreviated)
+<!-- markdownlint-disable MD013 -->
 | Area | Test Focus | Example |
 |------|------------|---------|
 | Slugging | Uniqueness & prefix width | Two similar titles produce -2 suffix |
@@ -432,7 +530,10 @@ for m in non_overlap:
 | Orphan Demotion | Heading w/o content | Demoted meta flag |
 | Manifest Hash | Stability | Run twice -> identical hash |
 
+<!-- markdownlint-enable MD013 -->
+
 ## 14. Extension Points
+<!-- markdownlint-disable MD013 -->
 | Extension | Hook | Future Scope |
 |-----------|------|--------------|
 | OCR Fallback | Ingestion post-failure | Tesseract integration |
@@ -440,14 +541,19 @@ for m in non_overlap:
 | Plugin System | Post-Processing dispatcher | Custom block transforms |
 | Schema Evolution | Manifest schema_version bump | Backward compatibility |
 
+<!-- markdownlint-enable MD013 -->
+
 ## 15. Non-Goals (Initial)
-OCR for scanned PDFs, semantic figure deduplication, glossary extraction, math LaTeX reconstruction.
+OCR for scanned PDFs, semantic figure deduplication, glossary extraction, math
+LaTeX reconstruction.
 
 ## 16. Security Notes
-Offline operation; no network calls; limit resource usage; defer expensive rasterization until needed.
+Offline operation; no network calls; limit resource usage; defer expensive
+rasterization until needed.
 
 ## 17. Quality Gates
-Fail build on fatal config / parse errors; ensure ≥98% code block fidelity (spot QA); performance target <90s for ~300 pages.
+Fail build on fatal config / parse errors; ensure ≥98% code block fidelity (spot
+QA); performance target <90s for ~300 pages.
 
 ## 18. Glossary
 | Term | Definition |

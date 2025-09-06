@@ -48,7 +48,7 @@ The script ensures that required tools are installed and functional:
 
 If any tool is missing, the script fails with a non-zero exit code and provides clear installation instructions, such as:
 - For Windows: `choco install pandoc; npm install -g @mermaid-js/mermaid-cli markdownlint-cli`
-- For Linux: Use appropriate package managers (e.g., `apt install pandoc; npm install -g @mermaid-js/mermaid-cli markdownlint-cli`)
+- For Linux: Use appropriate package managers (e.g., `apt install pandoc`). For npm, it is recommended to configure a local prefix to avoid using `sudo`: `npm config set prefix '~/.npm-global'` then `npm install -g @mermaid-js/mermaid-cli markdownlint-cli`.
 
 ### Expected Output
 The validation checks for:

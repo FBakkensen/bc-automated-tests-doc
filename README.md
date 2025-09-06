@@ -61,13 +61,24 @@ For cross-platform compatibility, ensure Python 3.11+ is installed, then install
 - On macOS: `brew install python@3.11`; then `pip install pre-commit`
 
 #### Install Validation Tools
-Run the following commands to install the required CLI tools globally:
+The recommended way to install global Node.js packages is to configure `npm` to use a local directory, which avoids permission issues and the need for `sudo`.
+
+1.  **Configure npm to use a local directory (one-time setup):**
+    ```bash
+    mkdir ~/.npm-global
+    npm config set prefix '~/.npm-global'
+    # Add the following line to your ~/.bashrc or ~/.zshrc, then run `source ~/.bashrc`
+    export PATH=~/.npm-global/bin:$PATH
+    ```
+
+2.  **Install the tools globally (without sudo):**
+    ```bash
+    npm install -g @mermaid-js/mermaid-cli markdownlint-cli
+    ```
+
+3.  **Install Pandoc:**
 
 ```bash
-# Install Mermaid CLI and markdownlint CLI via npm (cross-platform)
-npm install -g @mermaid-js/mermaid-cli markdownlint-cli
-
-# Install Pandoc
 # On macOS:
 brew install pandoc
 
