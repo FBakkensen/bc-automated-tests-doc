@@ -1,6 +1,6 @@
 # pdf2md Design Specification (AI-Optimized)
 
-<!-- markdownlint-disable MD012 MD058 MD024 -->
+<!-- markdownlint-disable  -->
 
 Version: 0.1 Source Basis: PRD distilled into structured, machine-friendly form.
 
@@ -611,7 +611,6 @@ Config keys (see PRD for canonical list):
 
 CLI flags (planned): `--ai`, `--ai-provider azure-openai`,
 `--ai-cache-mode <mode>`, `--ai-min-confidence <x>`.
-
 
 ## 16. Security Notes
 

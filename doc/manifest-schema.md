@@ -1,6 +1,6 @@
 # Manifest Schema Specification
 
-<!-- markdownlint-disable MD013 MD012 MD058 MD024 -->
+<!-- markdownlint-disable MD013 -->
 
 This document defines the canonical manifest schema for the pdf2md tool,
 extracted and normative from the PRD. It includes the top-level shape, field
@@ -116,7 +116,6 @@ tests) and enable structural change detection.
 
 1. Compute SHA-256 over the resulting bytes; prefix with `sha256:`.
 
-
 ### Determinism Rules
 
 - Manifest writing uses the exact field order shown (though JSON clients should
@@ -134,13 +133,10 @@ tests) and enable structural change detection.
 
 ### Backward Compatibility Strategy
 
-- Additive fields must be documented in a new subsection and appended without
-
-  altering existing semantics.
+- Additive fields must be documented in a new subsection and appended without altering existing semantics.
 
 - Removal or renaming triggers major version bump and migration note.
 - Structural hash excludes future additive fields by design.
-
 
 ### Error Handling
 
