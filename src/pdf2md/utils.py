@@ -1,9 +1,12 @@
 from __future__ import annotations
-from typing import Iterable
+
 import re
+from collections.abc import Iterable
+
 from slugify import slugify as _slugify
 
 SLUG_SAFE_REMOVE = ["'", '"']
+
 
 def deterministic_slug(text: str, prefix_index: int | None = None, width: int = 2) -> str:
     base = text.strip().lower()
@@ -14,7 +17,9 @@ def deterministic_slug(text: str, prefix_index: int | None = None, width: int = 
         return f"{prefix_index:0{width}d}-{s}"
     return s
 
+
 HYPHENATION_RE = re.compile(r"([A-Za-z]{3,})-$")
+
 
 def repair_hyphenation(lines: Iterable[str]) -> list[str]:
     result: list[str] = []
@@ -36,7 +41,13 @@ def repair_hyphenation(lines: Iterable[str]) -> list[str]:
         result.append(pending)
     return result
 
-HEADING_PATTERN = re.compile(r"^(part\s+\w+|chapter\s+\d+|appendix\s+[a-zA-Z]|\d+(?:\.\d+){0,3})\b", re.IGNORECASE)
+
+HEADING_PATTERN = re.compile(
+    r"^(part\s+\w+|chapter\s+\d+|appendix\s+[a-zA-Z]|"
+    r"\d+(?:\.\d+){0,3})\b",
+    re.IGNORECASE,
+)
+
 
 def is_heading_candidate(text: str) -> bool:
     if len(text) > 180:
@@ -45,6 +56,4 @@ def is_heading_candidate(text: str) -> bool:
         return True
     # heuristic: many uppercase words
     words = text.split()
-    if words and sum(1 for w in words if w.isupper() and len(w) > 2) / len(words) >= 0.6:
-        return True
-    return False
+    return bool(words and sum(1 for w in words if w.isupper() and len(w) > 2) / len(words) >= 0.6)

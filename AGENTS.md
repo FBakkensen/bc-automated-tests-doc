@@ -26,7 +26,23 @@ This file provides guidance to agents when working with code in this repository.
    restricted to offline-only operation; it works fully offline and optionally
    online with AI assistance when enabled.
 - Implementation phasing: ingest.py → headings.py → structure.py → codeblocks.py/tables.py → figures.py → build_tree.py → render.py → exporter.py → postprocess.py.
-- Testing: Use synthetic samples in tests/fixtures and tests/golden/ (no large PDFs in repo); check determinism via structural tree hash.
+- Testing: Prefer TDD‑generated, synthetic PDFs created on‑the‑fly inside tests; optionally use tiny committed fixtures in `tests/fixtures/pdfs` only when necessary. Never add large PDFs. Always check determinism via structural tree hash.
+
+## TDD Policy for Test PDFs
+
+- Create test PDFs as part of the TDD loop (Red→Green→Refactor). Tests generate small, deterministic PDFs at runtime rather than relying on external assets.
+- Determinism requirements for generated PDFs:
+  - Fixed page size, margins, and draw order
+  - Embedded fonts bundled in repo (e.g., DejaVu Sans/Mono)
+  - Constantized PDF metadata (CreationDate/Producer)
+  - No randomness or timestamps
+- Assertion strategy:
+  - Early TDD: property‑based assertions (e.g., headings promoted, hyphen repair, list nesting)
+  - Stabilized behavior: add golden snapshots (manifest, structural_hash, selected Markdown)
+  - Allow intentional updates via `UPDATE_GOLDENS=1` in the environment
+- CI guidance:
+  - Generate PDFs during tests; run with `--ai=false`
+  - Keep any committed fixtures tiny (≤ ~50 KB) and only when generation is impractical
 - TDD: Add unit tests for every new heuristic/transformation; ensure no syntax/import errors pre-PR.
 - Performance: Stream pages with generators; defer image rasterization post-text extraction.
 - Errors: Raise targeted exceptions (e.g., for PDF readability); CLI exits map to codes (1:general, 2:config, 3:I/O, 4:parse).
@@ -34,15 +50,20 @@ This file provides guidance to agents when working with code in this repository.
 - Lazy imports: __init__.py uses __getattr__ to defer ToolConfig (avoids cycles in tests).
 - Global chapter numbering (no per-part reset, log warnings).
 
-## Mandatory Documentation Validation Rule
+## Documentation Validation Rule (Post-Change, Elevated)
 
-All agents must perform a clean validation of the doc/ directory files (e.g., doc/design.md and others) whenever they are touched, modified, or referenced in any task. This is a mandatory pre-action step in agent workflows, similar to pre-commit/CI hooks, to enforce documentation integrity. The rule applies to all modes (code, architect, etc.).
+All agents must validate documentation in the `doc/` directory (e.g., `doc/design.md`, `doc/prd.md`) immediately AFTER making changes that touch those files. Validation is not required prior to edits, and it is not required when merely referencing docs without modifying them. This rule applies to all modes (code, architect, etc.) to enforce documentation integrity.
 
 ### When to Run
-Run validation for any task that involves touching, modifying, or referencing files in the doc/ directory.
+- Run validation only when your changes modify one or more files under `doc/`.
+- Run it as a post-change step before concluding the task/PR.
 
-### How to Run
-Execute `bash scripts/validate-md.sh` from the project root.
+### How to Run (Elevated)
+- Always execute `scripts/validate-md.sh` with elevated permissions so Mermaid rendering (headless Chromium) and other tooling can run reliably in sandboxes/CI.
+- Example (Codex CLI): invoke the shell with `with_escalated_permissions=true` and a brief justification. Equivalent local shells may use `sudo` or environment-specific elevation.
+
+Command:
+`bash scripts/validate-md.sh`
 
 ### Tool Checks and Failures
 The script ensures that required tools are installed and functional:
@@ -67,3 +88,12 @@ The Python script ensures compatibility across Linux and Windows. Use Python for
 
 ### References
 For implementation details, see [doc/validation-design.md](doc/validation-design.md) and [doc/dev-workflow.md](doc/dev-workflow.md). This rule builds on the completed tasks for validation system architecture and workflow integration.
+
+## Zero‑Tolerance Policy (Warnings & Lint Errors)
+
+- Markdown: All documentation under `doc/` must pass validation with zero warnings or errors. Fix issues rather than suppressing rules (e.g., avoid blanket `markdownlint` disables; use local reflow or rule‑specific exceptions only when justified and documented).
+- Python: Source and tests must be clean under the configured tools with zero warnings/errors:
+  - `ruff format` – no diffs in CI
+  - `ruff check` – zero findings (E, F, B, I ruleset)
+  - `mypy` – no type errors (project baseline; strictness may increase over time)
+- CI is configured to fail on any violation. Pre‑commit hooks should be used locally to catch issues early.

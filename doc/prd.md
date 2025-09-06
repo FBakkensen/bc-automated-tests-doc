@@ -1314,8 +1314,8 @@ xref_patterns: []
 
 - Cross References: unresolved policy behaviors; only resolved appear in
 
-   manifest; enabling/disabling figure resolution does not change structural
-   hash; pattern order deterministic.
+  manifest; enabling/disabling figure resolution does not change structural
+  hash; pattern order deterministic.
 
 - Numbering Extraction: gap detection, chapter reset remap, appendix ordering,
 
@@ -1337,6 +1337,76 @@ xref_patterns: []
 - Config Validation: invalid caption weight sum (sum != 1) → exit 2; bad regex
 
    in `appendix_patterns` → exit 2.
+
+### 13.1 Test Data and Fixtures (Synthetic PDFs + Goldens)
+
+Purpose: provide small, fully offline, deterministic inputs that exercise individual
+heuristics and enable hash-stable golden comparisons.
+
+Fixture layout (checked into repo):
+
+- `tests/fixtures/pdfs/` tiny synthetic PDFs, each targeting a feature:
+  - `basic_headings.pdf` (parts/chapters/sections, font tiers)
+  - `hyphenation_lines.pdf` (line merge + hyphen repair)
+  - `lists_blocks.pdf` (nested bullets/ordered lists with x-offset deltas)
+  - `code_blocks.pdf` (monospace blocks and inline code)
+  - `tables_simple.pdf` (aligned columns + fallback preformatted)
+  - `figures_captions.pdf` (image + caption scoring/tie‑break)
+  - `footnotes.pdf` (superscripts and bottom-band footnotes)
+  - `cross_refs.pdf` (Chapter/Fig./Section patterns)
+  - `appendices.pdf` (Appendix A/B ordering, page-break requirement)
+  - `noise_pages.pdf` (running headers/footers, page numbers)
+
+- `tests/fixtures/config/` per‑fixture YAML/JSON configs toggling thresholds
+  (e.g., `numbering_validate_gaps`, `xref_unresolved_policy`, caption weights).
+
+- `tests/golden/<fixture>/` expected outputs for comparison:
+  - `manifest.json`
+  - `structural_hash.txt`
+  - Selected Markdown files (representative, not entire corpus)
+  - Optional `toc.yml` if `--toc` enabled
+
+Generation (deterministic, offline):
+
+- Prefer a small Python script (e.g., `scripts/gen-fixtures.py`) using ReportLab
+  to draw text/images at fixed positions, with:
+  - Fixed page size/margins, explicit draw order
+  - Embedded fonts (e.g., DejaVu Sans/Mono) to avoid platform font drift
+  - Overwritten PDF metadata (CreationDate/Producer) to constants
+  - No randomness, timestamps, or machine‑dependent inputs
+
+Operational policy:
+
+- CI uses the committed tiny PDFs for speed and stability; regeneration is for
+  developers only and optional.
+- Tests run the CLI with `--ai=false`, assert:
+  - manifest schema shape and required keys
+  - `structural_hash` equality to golden
+  - normalized equality of selected Markdown files
+  - expected log events for edge conditions (e.g., `chapter_number_reset_detected`)
+- Size guardrail: keep each fixture ≤ ~50 KB where practical.
+
+### 13.2 TDD‑Centric Fixture Generation (On‑the‑Fly)
+
+Default workflow: create test PDFs inside tests as part of the TDD cycle. This
+avoids bulky assets and keeps tests self‑contained and reproducible.
+
+- Test‑time generation:
+  - Use a small helper (DSL‑like) to place text, lists, code, tables, and
+    figures at fixed coordinates with embedded fonts and constant metadata.
+  - No network, no randomness, and no timestamps. Use a fixed page size and a
+    stable draw order.
+
+- Assertions:
+  - Early: structural/property checks (e.g., heading promotion, hyphen repair
+    behavior, and list nesting).
+  - Stabilized: add goldens (manifest, structural_hash, and selected Markdown).
+    Refresh only when `UPDATE_GOLDENS=1` is set.
+
+- CI policy:
+  - Generate PDFs during CI with `--ai=false`.
+  - Commit tiny fixture PDFs only when generation is impractical; otherwise
+    rely on runtime generation.
 
 ## 14. Logging & Observability
 

@@ -1,8 +1,9 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Tuple
 
-BBox = Tuple[float, float, float, float]
+from dataclasses import dataclass, field
+
+BBox = tuple[float, float, float, float]
+
 
 @dataclass
 class Span:
@@ -10,34 +11,39 @@ class Span:
     bbox: BBox
     font_name: str
     font_size: float
-    style_flags: Dict[str, bool]
+    style_flags: dict[str, bool]
     page: int
+
 
 @dataclass
 class Node:
     type: str
-    children: List["Node"] = field(default_factory=list)
-    meta: Dict[str, object] = field(default_factory=dict)
+    children: list[Node] = field(default_factory=list)
+    meta: dict[str, object] = field(default_factory=dict)
+
 
 @dataclass
 class Figure:
     image_path: str
-    caption: Optional[str]
-    alt: Optional[str]
+    caption: str | None
+    alt: str | None
     page: int
     bbox: BBox
 
+
 @dataclass
 class CodeBlock:
-    language: Optional[str]
-    lines: List[str]
-    page_span: Tuple[int, int]
+    language: str | None
+    lines: list[str]
+    page_span: tuple[int, int]
+
 
 @dataclass
 class Table:
-    rows: List[List[str]]
-    page_span: Tuple[int, int]
+    rows: list[list[str]]
+    page_span: tuple[int, int]
     confidence: float
+
 
 @dataclass
 class ManifestEntry:
@@ -45,5 +51,5 @@ class ManifestEntry:
     title: str
     level: int
     file: str
-    parent: Optional[str]
-    pages: Tuple[int, int]
+    parent: str | None
+    pages: tuple[int, int]

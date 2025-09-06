@@ -8,8 +8,9 @@ LIST_RE = re.compile(r"^\s*(?:[-+*]\s+|\d+\.\s+)")
 TABLE_RE = re.compile(r"^\|.*\|?$")
 FENCE_OPEN_RE = re.compile(r"^```(.*)$")
 
-def ensure_blank_around_blocks(lines):
-    out = []
+
+def ensure_blank_around_blocks(lines: list[str]) -> list[str]:
+    out: list[str] = []
     i = 0
     n = len(lines)
     while i < n:
@@ -20,7 +21,7 @@ def ensure_blank_around_blocks(lines):
                 out.append("")
             out.append(line)
             # ensure blank after
-            if i + 1 < n and lines[i+1].strip() != "":
+            if i + 1 < n and lines[i + 1].strip() != "":
                 out.append("")
             i += 1
             continue
@@ -82,10 +83,12 @@ def ensure_blank_around_blocks(lines):
         i += 1
     return out
 
-def fix_trailing_newline(text):
+
+def fix_trailing_newline(text: str) -> str:
     return text if text.endswith("\n") else text + "\n"
 
-def main(paths):
+
+def main(paths: list[str]) -> None:
     for p in paths:
         path = Path(p)
         text = path.read_text(encoding='utf-8')
@@ -97,9 +100,9 @@ def main(paths):
         new = fix_trailing_newline(new)
         path.write_text(new, encoding='utf-8')
 
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print("Usage: fix_md.py <files...>")
         sys.exit(1)
     main(sys.argv[1:])
-

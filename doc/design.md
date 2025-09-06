@@ -639,6 +639,54 @@ Structured prompts (shape only; JSON‑only responses enforced):
 - Caption tie‑break: input {candidates:[{pattern, position, distance, font, score}]}; schema {index:int, confidence}.
 - Noise guard: input {text, freq_ratio, y_band, samples}; schema {action:"keep"|"drop", confidence}.
 
+## 16. Test Data & Goldens
+
+Goal: deterministic, offline fixtures that validate stages end‑to‑end and enforce
+idempotency via structural hashes and snapshot files.
+
+Layout
+- `tests/fixtures/pdfs/` small synthetic PDFs, each focused on a feature area
+  (headings/numbering, hyphenation, lists, code blocks, tables, figures & captions,
+  footnotes, cross‑refs, appendices, noise).
+- `tests/fixtures/config/` per‑fixture config overrides for reproducible thresholds.
+- `tests/golden/<fixture>/` expected artifacts: `manifest.json`, `structural_hash.txt`,
+  representative Markdown files, optional `toc.yml`.
+
+Generation (deterministic)
+- Implement a reproducible generator (e.g., `scripts/gen-fixtures.py`) using ReportLab or
+  an equivalent offline library.
+- Controls:
+  - Embed fonts to avoid platform drift (e.g., DejaVu Sans/Mono bundled in repo).
+  - Fixed page size and coordinates; stable draw order.
+  - Constantized metadata (CreationDate/Producer); no timestamps or randomness.
+  - Tiny PNG/SVG assets created in‑repo for figure tests.
+
+Execution in tests
+- Invoke CLI as `pdf2md convert <fixture.pdf> -o .tmp/<fixture> --config <cfg> --ai=false`.
+- Assertions:
+  - Manifest shape and required fields present.
+  - `structural_hash` matches golden.
+  - Normalized Markdown equality for selected files.
+  - Optional `toc.yml` equality when enabled.
+
+Policy
+- CI consumes the committed, tiny PDFs; regeneration is a developer convenience, not a CI step.
+- Keep fixtures ≤ ~50 KB where possible; no large or copyrighted third‑party PDFs.
+
+### 16.1 TDD Workflow for Test PDFs (On‑the‑Fly)
+
+- Generate PDFs inside tests as part of the Red→Green→Refactor loop to keep test data close to assertions and fully deterministic.
+- Determinism controls:
+  - Fixed page size/margins and explicit drawing order
+  - Embedded repo fonts (e.g., DejaVu Sans/Mono) to prevent platform drift
+  - Constant PDF metadata; no clocks/UUIDs/random
+- Assertions progression:
+  - Start with property‑level checks (e.g., is_heading promotion, hyphen repair, list nesting, code block detection)
+  - Add goldens (manifest, structural_hash, selected Markdown) once behavior stabilizes; refresh via `UPDATE_GOLDENS=1`
+- CI guidance:
+  - Prefer runtime generation with `--ai=false`.
+  - Commit tiny PDFs only if generation is impractical for a scenario; otherwise avoid repository bloat.
+
 ## 16. Security Notes
 
 Networked AI is allowed when explicitly enabled. Limit resource usage and

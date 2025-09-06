@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 import sys
-from pathlib import Path
 import textwrap
+from pathlib import Path
+
 
 def reflow_markdown(content: str, width: int = 80) -> str:
     lines = content.splitlines()
-    out = []
+    out: list[str] = []
     in_fence = False
-    fence_marker = None
 
-    def flush_para(buf):
+    def flush_para(buf: list[str]) -> None:
         if not buf:
             return
         text = " ".join(s.strip() for s in buf)
         wrapped = textwrap.fill(text, width=width)
         out.extend(wrapped.splitlines())
 
-    para_buf = []
+    para_buf: list[str] = []
     i = 0
     while i < len(lines):
         line = lines[i]
@@ -26,12 +26,7 @@ def reflow_markdown(content: str, width: int = 80) -> str:
             if para_buf:
                 flush_para(para_buf)
                 para_buf = []
-            if in_fence:
-                in_fence = False
-                fence_marker = None
-            else:
-                in_fence = True
-                fence_marker = stripped[:3]
+            in_fence = not in_fence
             out.append(line)
             i += 1
             continue
@@ -42,9 +37,14 @@ def reflow_markdown(content: str, width: int = 80) -> str:
             continue
 
         # Tables or headings or HTML comments: do not wrap
-        if (stripped.startswith("|") or stripped.startswith("#") or
-            stripped.startswith("<!--") or stripped.startswith(">") or
-            stripped.startswith("=") or stripped.startswith("-") and not stripped.startswith("- ")):
+        if (
+            stripped.startswith("|")
+            or stripped.startswith("#")
+            or stripped.startswith("<!--")
+            or stripped.startswith(">")
+            or stripped.startswith("=")
+            or (stripped.startswith("-") and not stripped.startswith("- "))
+        ):
             if para_buf:
                 flush_para(para_buf)
                 para_buf = []
@@ -53,12 +53,13 @@ def reflow_markdown(content: str, width: int = 80) -> str:
             continue
 
         # List items: reflow with indentation preserved
-        if stripped.startswith(('- ', '* ', '+ ')) or any(stripped.startswith(f"{n}. ") for n in map(str, range(1,10))):
+        ordered_prefixes = tuple(f"{n}. " for n in range(1, 10))
+        if stripped.startswith(("- ", "* ", "+ ")) or stripped.startswith(ordered_prefixes):
             if para_buf:
                 flush_para(para_buf)
                 para_buf = []
             # collect following lines that are part of this list item (until blank or new item)
-            prefix = line[:len(line) - len(stripped)]
+            prefix = line[: len(line) - len(stripped)]
             bullet, rest = stripped.split(' ', 1)
             item_lines = [rest]
             j = i + 1
@@ -67,7 +68,7 @@ def reflow_markdown(content: str, width: int = 80) -> str:
                 nstr = nxt.lstrip()
                 if not nstr:
                     break
-                if nstr.startswith(('- ', '* ', '+ ')) or any(nstr.startswith(f"{n}. ") for n in map(str, range(1,10))):
+                if nstr.startswith(("- ", "* ", "+ ")) or nstr.startswith(ordered_prefixes):
                     break
                 if nstr.startswith("```"):
                     break
@@ -102,16 +103,16 @@ def reflow_markdown(content: str, width: int = 80) -> str:
     return "\n".join(out) + "\n"
 
 
-def main():
+def main() -> None:
     paths = [Path(p) for p in sys.argv[1:]]
     for p in paths:
         data = p.read_text(encoding='utf-8')
         new = reflow_markdown(data, width=80)
         p.write_text(new, encoding='utf-8')
 
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print("Usage: reflow_md.py <files...>")
         sys.exit(1)
     main()
-
