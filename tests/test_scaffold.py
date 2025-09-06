@@ -21,4 +21,3 @@ def test_repository_scaffold_files_present() -> None:
     ]
     for p in expected:
         assert p.exists(), f"Missing scaffold file: {p}"
-

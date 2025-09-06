@@ -43,8 +43,7 @@ def repair_hyphenation(lines: Iterable[str]) -> list[str]:
 
 
 HEADING_PATTERN = re.compile(
-    r"^(part\s+\w+|chapter\s+\d+|appendix\s+[a-zA-Z]|"
-    r"\d+(?:\.\d+){0,3})\b",
+    r"^(part\s+\w+|chapter\s+\d+|appendix\s+[a-zA-Z]|" r"\d+(?:\.\d+){0,3})\b",
     re.IGNORECASE,
 )
 

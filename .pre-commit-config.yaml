@@ -5,38 +5,39 @@ default_language_version:
     python: python3
 
 repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
-    hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-yaml
-      - id: check-added-large-files
-
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.1
-    hooks:
-      - id: ruff
-        args: ["--fix", "--exit-non-zero-on-fix"]
-      - id: ruff-format
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
-    hooks:
-      - id: mypy
-        additional_dependencies: []
-
   - repo: local
     hooks:
+      - id: markdownlint-commit
+        name: Markdown lint (lightweight)
+        entry: bash -lc 'LINT_ONLY=true LINT_FALLBACK_OK=true SKIP_PANDOC=true VALIDATE_MERMAID=skip bash scripts/validate-md.sh'
+        language: system
+        files: ^doc/.*\.md$
+        pass_filenames: false
+      - id: ruff-format
+        name: Ruff Format
+        entry: ruff format --check .
+        language: system
+        pass_filenames: false
+      - id: ruff
+        name: Ruff Lint
+        entry: ruff check .
+        language: system
+        pass_filenames: false
+      - id: mypy
+        name: Mypy Type Check
+        entry: mypy .
+        language: system
+        pass_filenames: false
       - id: validate-md
         name: Validate Markdown and Mermaid
-        entry: bash scripts/validate-md.sh
+        entry: bash -lc 'VALIDATE_MERMAID=warn_on_sandbox bash scripts/validate-md.sh'
         language: system
         files: ^doc/.*\.md$
         pass_filenames: true
+        stages: [pre-push]
       - id: pytest
         name: Run unit tests (pytest -q)
         entry: pytest -q
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]

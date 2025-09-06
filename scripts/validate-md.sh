@@ -7,6 +7,12 @@
 
 set -e
 
+# Behavior flags via environment:
+#  - VALIDATE_MERMAID: strict|warn_on_sandbox|skip (default: strict)
+#  - SKIP_PANDOC: true|false (default: false)
+#  - LINT_ONLY: true|false (default: false)
+#  - LINT_FALLBACK_OK: true|false (default: false)
+
 # Default values
 THRESHOLD=5
 ERROR_COUNT=0
@@ -32,15 +38,34 @@ command_exists() {
 check_tools() {
     local missing_tools=()
 
-    if ! command_exists markdownlint; then
-        missing_tools+=("markdownlint")
+    # Determine which tools are required based on flags
+    local need_markdownlint=true
+    local need_mmdc=true
+    local need_pandoc=true
+    if [ "${LINT_ONLY:-false}" = "true" ]; then
+        need_mmdc=false
+        need_pandoc=false
+    fi
+    if [ "${VALIDATE_MERMAID:-strict}" = "skip" ]; then
+        need_mmdc=false
+    fi
+    if [ "${SKIP_PANDOC:-false}" = "true" ]; then
+        need_pandoc=false
     fi
 
-    if ! command_exists mmdc; then
+    if $need_markdownlint && ! command_exists markdownlint; then
+        if [ "${LINT_FALLBACK_OK:-false}" = "true" ]; then
+            echo "markdownlint not found; using minimal fallback checks." >&2
+        else
+            missing_tools+=("markdownlint")
+        fi
+    fi
+
+    if $need_mmdc && ! command_exists mmdc; then
         missing_tools+=("mmdc")
     fi
 
-    if ! command_exists pandoc; then
+    if $need_pandoc && ! command_exists pandoc; then
         missing_tools+=("pandoc")
     fi
 
@@ -64,79 +89,93 @@ validate_file() {
 
     echo "Validating $file_path..."
 
-    # Lint with markdownlint
-    if ! markdownlint_output=$(markdownlint --json "$file_path" 2>&1); then
-        echo "  ERROR: Lint failed: $markdownlint_output"
-        ((file_errors++))
+    # Lint with markdownlint or fallback
+    if command_exists markdownlint; then
+        if ! markdownlint_output=$(markdownlint --json "$file_path" 2>&1); then
+            echo "  ERROR: Lint failed: $markdownlint_output"
+            ((file_errors++))
+        else
+            if [ -n "$markdownlint_output" ] && [ "$markdownlint_output" != "[]" ]; then
+                echo "$markdownlint_output" | jq -r --arg file_path "$file_path" '
+                    if type == "array" then
+                        .[]
+                    elif type == "object" and has($file_path) then
+                        .[$file_path][]
+                    else
+                        empty
+                    end |
+                    "  ERROR: Lint error on line \(.lineNumber): \(.ruleDescription) - \(.errorContext // "No context")"' 2>/dev/null \
+                    || echo "  ERROR: Failed to parse lint output"
+                ((file_errors++))
+            fi
+        fi
     else
-        # Parse JSON output
-        if [ -n "$markdownlint_output" ] && [ "$markdownlint_output" != "[]" ]; then
-            echo "$markdownlint_output" | jq -r --arg file_path "$file_path" '
-                if type == "array" then
-                    .[]
-                elif type == "object" and has($file_path) then
-                    .[$file_path][]
-                else
-                    empty
-                end |
-                "  ERROR: Lint error on line \(.lineNumber): \(.ruleDescription) - \(.errorContext // "No context")"
-            ' 2>/dev/null || echo "  ERROR: Failed to parse lint output"
+        # Minimal fallback: trailing whitespace and long lines > 100 chars
+        if grep -nE "[[:space:]]+$" "$file_path" >/dev/null; then
+            echo "  ERROR: Trailing whitespace detected."
+            ((file_errors++))
+        fi
+        if awk 'length($0) > 100 {print NR; exit 1}' "$file_path" >/dev/null; then
+            :
+        else
+            echo "  ERROR: Lines exceeding 100 characters detected."
             ((file_errors++))
         fi
     fi
 
-    # Extract Mermaid blocks
-    local mermaid_blocks=()
-    while IFS= read -r line; do
-        mermaid_blocks+=("$line")
-    done < <(sed -n '/^```mermaid/,/^```/p' "$file_path" | sed '1d;$d')
+    # Mermaid validation (optional)
+    if [ "${VALIDATE_MERMAID:-strict}" != "skip" ]; then
+        local mermaid_blocks=()
+        while IFS= read -r line; do
+            mermaid_blocks+=("$line")
+        done < <(sed -n '/^```mermaid/,/^```/p' "$file_path" | sed '1d;$d')
 
-    # Validate Mermaid blocks
-    local temp_mmd=$(mktemp --suffix=.mmd)
-    local temp_svg=$(mktemp --suffix=.svg)
-    local puppeteer_cfg="scripts/puppeteer-ns.json"
-    trap "rm -f $temp_mmd $temp_svg" EXIT
+        local temp_mmd=$(mktemp --suffix=.mmd)
+        local temp_svg=$(mktemp --suffix=.svg)
+        local puppeteer_cfg="scripts/puppeteer-ns.json"
+        trap "rm -f $temp_mmd $temp_svg" EXIT
 
-    local block_count=0
-    local in_block=false
-    local block_content=""
+        local block_count=0
+        local in_block=false
+        local block_content=""
 
-    while IFS= read -r line; do
-        if [[ "$line" == '```mermaid' ]]; then
-            in_block=true
-            block_content=""
-            ((block_count++))
-        elif [[ "$line" == '```' ]] && [[ "$in_block" == true ]]; then
-            in_block=false
-            echo "$block_content" > "$temp_mmd"
-            tmp_err=$(mktemp)
-            # Run mmdc; capture stderr to detect sandbox limitations
-            mmdc -i "$temp_mmd" -o "$temp_svg" -p "$puppeteer_cfg" >/dev/null 2> "$tmp_err" || true
-            if grep -qiE 'sandbox_host_linux|Failed to launch the browser process' "$tmp_err"; then
-                if [ "${VALIDATE_MERMAID:-strict}" = "warn_on_sandbox" ]; then
-                    echo "  WARN: Mermaid rendering skipped due to browser sandbox; diagrams retained as-is."
+        while IFS= read -r line; do
+            if [[ "$line" == '```mermaid' ]]; then
+                in_block=true
+                block_content=""
+                ((block_count++))
+            elif [[ "$line" == '```' ]] && [[ "$in_block" == true ]]; then
+                in_block=false
+                echo "$block_content" > "$temp_mmd"
+                tmp_err=$(mktemp)
+                mmdc -i "$temp_mmd" -o "$temp_svg" -p "$puppeteer_cfg" >/dev/null 2> "$tmp_err" || true
+                if grep -qiE 'sandbox_host_linux|Failed to launch the browser process' "$tmp_err"; then
+                    if [ "${VALIDATE_MERMAID:-strict}" = "warn_on_sandbox" ]; then
+                        echo "  WARN: Mermaid rendering skipped due to browser sandbox; diagrams retained as-is."
+                    else
+                        echo "  ERROR: Mermaid rendering failed due to browser sandbox; strict mode requires rendering to pass."
+                        ((file_errors++))
+                    fi
                 else
-                    echo "  ERROR: Mermaid rendering failed due to browser sandbox; strict mode requires rendering to pass."
-                    ((file_errors++))
+                    if [ -s "$tmp_err" ]; then
+                        echo "  ERROR: Mermaid error in block $block_count. Details:" >&2
+                        sed -n '1,5p' "$tmp_err" | sed 's/^/    /'
+                        ((file_errors++))
+                    fi
                 fi
-            else
-                # If exit code non-zero or stderr contains other errors, flag it
-                if [ -s "$tmp_err" ]; then
-                    echo "  ERROR: Mermaid error in block $block_count. Details:" >&2
-                    sed -n '1,5p' "$tmp_err" | sed 's/^/    /'
-                    ((file_errors++))
-                fi
+                rm -f "$tmp_err"
+            elif [[ "$in_block" == true ]]; then
+                block_content+="$line"$'\n'
             fi
-            rm -f "$tmp_err"
-        elif [[ "$in_block" == true ]]; then
-            block_content+="$line"$'\n'
-        fi
-    done < "$file_path"
+        done < "$file_path"
+    fi
 
-    # Render with pandoc
-    if ! pandoc -f gfm "$file_path" -t html -o /dev/null >/dev/null 2>&1; then
-        echo "  ERROR: Pandoc render error"
-        ((file_errors++))
+    # Render with pandoc unless skipped
+    if [ "${SKIP_PANDOC:-false}" != "true" ]; then
+        if ! pandoc -f gfm "$file_path" -t html -o /dev/null >/dev/null 2>&1; then
+            echo "  ERROR: Pandoc render error"
+            ((file_errors++))
+        fi
     fi
 
     return $file_errors

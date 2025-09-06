@@ -101,12 +101,34 @@ For implementation details, see [doc/validation-design.md](doc/validation-design
 ## Pre-Commit Hooks (Standard Framework)
 
 - This repo uses the pre-commit framework to run checks automatically on commit.
-- Setup (one-time per machine):
+- Setup (one-time per machine or sandbox):
   - `pip install pre-commit` (or `pip install .[dev]`)
   - `pre-commit install`
   - Optional: `pre-commit run --all-files` for a full first pass
 - Hooks included:
-  - Ruff format and lint; Mypy; unit tests via `pytest -q`; core housekeeping hooks; documentation validator for `doc/` files.
+  - Commit stage (fast, offline):
+    - Markdown lint (lightweight): runs `scripts/validate-md.sh` in lint-only mode with
+      `LINT_ONLY=true LINT_FALLBACK_OK=true SKIP_PANDOC=true VALIDATE_MERMAID=skip`
+      so it never requires Node/Pandoc in the sandbox; still enforces trailing whitespace
+      and long-line checks.
+    - Ruff format (check-only) and Ruff lint
+    - Mypy type check
+    - Unit tests via `pytest -q` (scaffold-only tests until development starts)
+  - Pre-push stage (deeper docs validation):
+    - Full `scripts/validate-md.sh` with
+      `VALIDATE_MERMAID=warn_on_sandbox` to avoid false failures when a headless browser
+      is not available in constrained environments; CI runs with full toolchain (Mermaid,
+      Pandoc, markdownlint) and enforces strict validation.
 - Policy:
   - Commits are blocked until hooks pass (zero warnings/errors). Fix issues or re-run after autofixes.
-  - Documentation validation runs as a post-change requirement and may require elevated permissions depending on environment; ensure required tools are installed.
+  - Documentation validation runs as a post-change requirement. In this sandbox, commit-time
+    uses lightweight lint; pre-push and CI enforce full validation. Use elevated permissions
+    where necessary for headless rendering.
+
+### Sandbox Notes (Agent Environment)
+
+- The agent runs with a local virtualenv `.venv` and a writable pre-commit cache
+  at `.pre-commit-cache` (`PRE_COMMIT_HOME`), so hooks execute without writing to
+  `$HOME`.
+- Hooks are configured as local (system-language) to avoid fetching remote hook repositories;
+  they use already-installed tools (Ruff, Mypy, Pytest) and the in-repo validator script.
