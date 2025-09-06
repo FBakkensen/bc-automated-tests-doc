@@ -11,7 +11,7 @@ watermarks), preserves logical structure (parts, chapters, sections, code
 listings, tables, callouts), and extracts embedded images (diagrams, figures)
 while keeping references consistent.
 
-<!-- markdownlint-disable MD013 MD012 -->
+<!-- markdownlint-disable MD013 -->
 
 Primary objective: High-fidelity, human-editable Markdown with minimal post-
 processing.
@@ -527,7 +527,6 @@ meta.part_order: int | null
 
 - `numbering_max_depth` (int, default 6): truncate deeper paths.
 
-
 #### Testing (Numbering)
 
 - Gap detection: synthetic sequence 1,2,4 logs one gap.
@@ -559,7 +558,6 @@ default patterns (case-insensitive):
 
 1. `^Appendix\s+([A-Z])\b`
 1. `^Annex\s+([A-Z0-9])\b`
-
 
 User-supplied `appendix_patterns` (if non-empty) are PREPENDED (higher
 precedence). Future (not initial) toggle `appendix_patterns_replace` could
@@ -629,14 +627,12 @@ replace defaults entirely.
 - Pre-order traversal evaluation; deterministic pattern ordering.
 - Conflicts resolved by pattern list order (user > defaults).
 
-
 #### Configuration Keys (Appendix)
 
 - `appendix_patterns: []` (empty -> defaults only; else prepended)
 - `appendix_letter_case: upper`
 - `appendix_requires_page_break: true`
 - `appendix_level: chapter`
-
 
 #### Testing (Appendix)
 
@@ -647,7 +643,6 @@ replace defaults entirely.
 - Out-of-order detection.
 - Cross-reference success for valid letters; failure for numeric annex ids.
 
-
 Non-goals (initial): Multi-letter (AA) appendices, roman numeral appendices,
 automatic insertion of missing letters, cross-reference to numeric Annex
 identifiers.
@@ -655,11 +650,9 @@ identifiers.
 ### Hyphenation Repair
 
 - Regex `([A-Za-z]{3,})-$` at line end + next line starts lowercase -> merge
-
   without hyphen.
 
 - Maintain exception list for domain-specific tokens.
-
 
 ### List Nesting
 
@@ -674,7 +667,6 @@ identifiers.
   across ≥ 2 lines.
 
 - Stop when blank line or style break.
-
 
 ### Table Extraction Fallback
 
@@ -704,7 +696,6 @@ text block.
 
 - Distance threshold: `figure_caption_distance` (default 150px) edge-to-edge.
 
-
 #### Pre-Filtering
 
 Compute vertical gap g and direction (below/above/overlap). Drop if g >
@@ -725,7 +716,6 @@ distance 0.25, font 0.15) configurable; must sum to 1 (±1e-6) or config error
 1. Smaller g.
 1. Direction priority below > above > overlap.
 1. Lexicographically smallest normalized text.
-
 
 #### Output (Caption)
 
@@ -769,7 +759,6 @@ structural hashing. Provide deterministic handling for unresolved references.
 
 - Optional resolving of Figures and Appendices guarded by config toggles.
 
-
 #### Patterns
 
 Configured via ordered list `xref_patterns` (first match wins). Default set
@@ -782,7 +771,6 @@ Configured via ordered list `xref_patterns` (first match wins). Default set
 1. `\bFigure\s+(\d+)\b`
 1. `\bFig\.\s+(\d+)\b`
 1. `\bAppendix\s+([A-Z])\b`
-
 
 Each pattern declares a `type` (chapter|section|figure|appendix) implicitly by
 position. Users may extend or reorder; removal of a pattern disables that
@@ -898,14 +886,10 @@ action:'pattern_disabled', pattern}`
 - `xref_resolve_figures` (bool, default true)
 - `xref_resolve_appendices` (bool, default false initial)
 
-
 #### Testing (XRef)
 
 - Unit: resolution of each reference type to correct slug.
-- Unresolved policies: annotate adds marker; keep leaves raw; drop removes
-
-  token.
-
+- Unresolved policies: annotate adds marker; keep leaves raw; drop removes token.
 - Rate limit triggers with synthetic > limit references.
 - Determinism: same input/config yields identical link set ordering.
 - Manifest integrity: resolved refs included with correct `type`; unresolved
@@ -924,7 +908,6 @@ action:'pattern_disabled', pattern}`
 
 - Appendix letter remapping beyond explicit heading parsing.
 - Hash inclusion of cross references (explicitly excluded for stability).
-
 
 This section supersedes earlier single-line description of cross-reference
 linking.
@@ -952,7 +935,6 @@ determinism.
   placeholder classification only (not removed initially).
 
 - Copyright Line: High-frequency line containing © or '(c)' plus year pattern.
-
 
 #### 10.X.2 Processing Order
 
@@ -1018,23 +1000,18 @@ prevent accidental hyphen merging across noise boundaries.
 - Removing rotated/transparent watermarks (log only).
 - Language-aware semantic noise detection.
 
-
 #### 10.X.7 Metrics
 
 - Counters emitted: `noise.removed_count`, `noise.unique_removed`,
-
   `noise.header_candidates`, `noise.footer_candidates`,
   `noise.retained_due_allowlist`.
 
 #### 10.X.8 Testing
 
-- Unit: synthetic pages with variable header/footer repetition to test threshold
-
-  boundaries.
+- Unit: synthetic pages with variable header/footer repetition to test threshold boundaries.
 
 - Property: page permutation does not change removal set.
 - Regression: snapshot of dry-run noise removal proposal for fixture.
-
 
 ### Orphan Heading Demotion
 
@@ -1115,7 +1092,6 @@ Options:
 - `--max-pages N` for debugging.
 - `--verbose / -v` repeatable.
 - `--language-detect` enable expensive code language inference.
-
 
 ## 12. Configuration Schema (Draft)
 
@@ -1374,13 +1350,11 @@ CONFIG:
 - `config_conflict` – mutually exclusive options (future placeholder).
 - `config_unknown_key` – extraneous key when future strict mode enabled.
 
-
-IO:
+- IO:
 
 - `pdf_unreadable`
 - `output_path_unwritable`
 - `image_write_failed` (fatal only if all figures fail)
-
 
 PARSE:
 
@@ -1403,8 +1377,7 @@ fallback notices.
 
 ### 15.3 Structured Error Object
 
-When emitting a fatal error (and `--debug-json-errors` set) the tool prints
-JSON:
+When emitting a fatal error (and `--debug-json-errors` set) the tool prints JSON:
 
 ```text
 {"category":"CONFIG","code":"config_weight_sum_invalid","message":"Figure caption weights sum 0.93 != 1.0","context":{"sum":0.93,"weights":[0.35,0.25,0.25,0.08]}}
@@ -1425,13 +1398,9 @@ JSON:
 
 1. First PARSE error aborts; subsequent suppressed (DEBUG only).
 1. CONFIG validation halts before PDF processing.
-1. `numbering_error_strict=false` keeps anomalies as WARN; true escalates to
+1. `numbering_error_strict=false` keeps anomalies as WARN; true escalates to PARSE.
 
-   PARSE.
-
-1. All figure extraction failures escalate to IO; partial failures remain WARN
-
-   entries.
+1. All figure extraction failures escalate to IO; partial failures remain WARN entries.
 
 ### 15.6 Testing
 
@@ -1441,12 +1410,10 @@ JSON:
 - Strict numbering escalation toggle.
 - Invalid regex in `appendix_patterns`.
 
-
 ### 15.7 Non-Goals
 
 - I18n of error messages.
 - Partial retries or auto-healing.
-
 
 This taxonomy supersedes earlier minimal bullet list.
 
@@ -1472,7 +1439,6 @@ This taxonomy supersedes earlier minimal bullet list.
 - Cache font style mapping.
 - Parallel image extraction (thread pool) after text pass (I/O bound).
 
-
 ## 18. Risks & Mitigations
 
 | Risk | Impact | Mitigation |
@@ -1492,7 +1458,6 @@ This taxonomy supersedes earlier minimal bullet list.
 - Glossary & index extraction heuristics.
 - Multi-language output transformations.
 - AI-assisted semantic section labeling.
-
 
 ## 20. Acceptance Checklist
 
@@ -1546,7 +1511,6 @@ This taxonomy supersedes earlier minimal bullet list.
   case of skipped numbers)?
 
 - Provide plugin hooks for custom transformations?
-
 
 ---
 Editorial Note (Structural Cleanup 2025-09-05): Functional Requirements
