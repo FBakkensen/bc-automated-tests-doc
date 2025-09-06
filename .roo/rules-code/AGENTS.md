@@ -1,0 +1,11 @@
+# Project Coding Rules (Non-Obvious Only)
+- Always use deterministic_slug from src/pdf2md/utils.py for filenames/anchors (enforces order via prefix_index, removes quotes pre-slugify).
+- repair_hyphenation in utils.py mandatory for line breaks (regex merges hyphen-end + lowercase start; non-standard vs. pdfplumber).
+- is_heading_candidate in utils.py rejects long texts (>180 chars) to avoid false positives on paragraphs.
+- Config loading: Manual yaml.safe_load fallback to json.loads (risks unvalidated data on suffix mismatch).
+- Error mixing: Typer.BadParameter for CLI inputs, but raw FileNotFoundError for config (breaks ergonomics).
+- Imports: All files use from __future__ import annotations; __init__.py lazy-loads to prevent test dep bloat.
+- Models: Use field(default_factory=dict/list) for mutable meta/children in dataclasses (frozen post-construction).
+- New modules under src/pdf2md/; update README.md only for user-visible CLI changes.
+- Context7: Resolve library ID via mcp_context7_resolve-library-id before mcp_context7_get-library-docs.
+- Orchestration: Adhere to run_conversion shape in future run.py, delegating to iter_spans, detect_headings, etc.
