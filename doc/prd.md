@@ -11,7 +11,7 @@ watermarks), preserves logical structure (parts, chapters, sections, code
 listings, tables, callouts), and extracts embedded images (diagrams, figures)
 while keeping references consistent.
 
-<!-- markdownlint-disable MD013 MD012 MD058 MD024 -->
+<!-- markdownlint-disable MD013 MD012 -->
 
 Primary objective: High-fidelity, human-editable Markdown with minimal post-
 processing.
@@ -57,13 +57,11 @@ AI assistance when enabled.
 - Semantic deduplication of near-identical figures.
 - Automatic glossary extraction or index synthesis.
 
-
 ## 4. Users & Use Cases
 
 - Tech authors migrating legacy PDF content to Markdown.
 - Engineering teams building internal doc portals.
 - Open-source maintainers publishing book-format content to docs sites.
-
 
 ## 5. Input / Output Specification
 
@@ -71,7 +69,6 @@ AI assistance when enabled.
 
 - Single PDF file path. (Future: folder batch mode.)
 - Optional config file (`yaml` or `json`) to override heuristics.
-
 
 ### Output
 
@@ -182,7 +179,6 @@ output/
 
 - Regenerating with identical inputs yields identical filenames bit-for-bit.
 
-
 #### Failure Handling
 
 - On attempt to write a file whose path already exists with differing content
@@ -199,7 +195,6 @@ output/
 
 - Tables emitted in GitHub-flavored Markdown.
 - Callouts mapped to blockquotes with leading label: `> **Note:** ...`.
-
 
 ## 6. Functional Requirements
 
@@ -282,28 +277,23 @@ safety limits. 15. Logging & Verbosity Levels:
 Dry Run Mode:
 
 - Output detected structure summary without writing Markdown/assets. 17.
-
 Resume Mode:
 
 - Skip already converted assets unless `--force`.
-
 
 ## 7. Non-Functional Requirements
 
 - Deterministic output given identical inputs + config.
 - Modular code (separate concerns: parsing, semantic modeling, rendering,
-
   exporters).
 
 - Logging uses standard library `logging` with structured contexts.
 - Python version: 3.11+.
 
-
 ## 8. Technology Choices
 
 - PDF Parsing: `pdfminer.six` / `pdfplumber` wrapper.
 - Image Extraction: `pypdf` first; fallback `pdf2image` (Poppler) only when
-
   needed.
 
 - Table Detection: `pdfplumber` tables + custom alignment fallback.
@@ -319,7 +309,6 @@ Resume Mode:
 Layers:
 
 1. Ingestion Layer: Loads PDF pages, extracts raw layout objects.
-
 
 Core Data Classes (conceptual):
 
@@ -502,7 +491,7 @@ meta.appendix_letter: str | null
 meta.part_order: int | null
 ```
 
-#### Determinism
+#### Determinism (Numbering)
 
 - Extraction runs once after Heading Clustering; no mutation of titles.
 - Roman numerals converted to decimal only for internal ordering; original
@@ -528,7 +517,7 @@ meta.part_order: int | null
 
   retained.
 
-#### Configuration Keys
+#### Configuration Keys (Numbering)
 
 - `numbering_validate_gaps` (bool, default true): emit warnings on gaps.
 - `numbering_allow_chapter_resets` (bool, default false): if true, do NOT remap
@@ -539,7 +528,7 @@ meta.part_order: int | null
 - `numbering_max_depth` (int, default 6): truncate deeper paths.
 
 
-#### Testing
+#### Testing (Numbering)
 
 - Gap detection: synthetic sequence 1,2,4 logs one gap.
 - Chapter reset case: Chapter 1,2,3,1 → reset logged and remapped to 4 (default
@@ -635,13 +624,13 @@ replace defaults entirely.
 `appendix_missing_page_break`, `appendix_early_ignored`,
 `appendix_numeric_identifier_ignored`.
 
-#### Determinism
+#### Determinism (Appendix)
 
 - Pre-order traversal evaluation; deterministic pattern ordering.
 - Conflicts resolved by pattern list order (user > defaults).
 
 
-#### Configuration Keys
+#### Configuration Keys (Appendix)
 
 - `appendix_patterns: []` (empty -> defaults only; else prepended)
 - `appendix_letter_case: upper`
@@ -649,7 +638,7 @@ replace defaults entirely.
 - `appendix_level: chapter`
 
 
-#### Testing
+#### Testing (Appendix)
 
 - Custom pattern precedence overshadowing default.
 - Early appendix ignored.
@@ -738,7 +727,7 @@ distance 0.25, font 0.15) configurable; must sum to 1 (±1e-6) or config error
 1. Lexicographically smallest normalized text.
 
 
-#### Output
+#### Output (Caption)
 
 Chosen caption fields: `caption_raw`, stripped `caption` (remove leading
 Figure/Fig number when `figure_caption_strip_prefix` true), `alt` (first
@@ -751,17 +740,17 @@ Shared caption for stacked figures: assign to closest; if gap diff <5px assign
 to both and log duplicate. Page-break split captions: not associated; log only.
 Tiny inline icons ignored.
 
-#### Determinism
+#### Determinism (Caption)
 
 Use Decimal quantized to 6 places internal; 4 for tie compare; 3 stored.
 Candidate ordering sorted by (gap, direction_rank, order_index).
 
-#### Logging
+#### Logging (Caption)
 
 Events: `score`, `tie_break`, `duplicate_caption_assignment` with figure ids and
 chosen candidate.
 
-#### Testing
+#### Testing (Caption)
 
 Scoring ordering, tie-break hierarchy, prefix stripping, duplicate caption path,
 weight sum validation, determinism across runs.
@@ -865,7 +854,7 @@ reference type.
 
   entries).
 
-#### Determinism
+#### Determinism (XRef)
 
 - Pattern evaluation order fixed by configuration list order.
 - Non-overlapping selection: sort candidate matches by (start_index,
@@ -892,14 +881,14 @@ reference type.
 
   warning and produces no links.
 
-#### Logging
+#### Logging (XRef)
 
 Events (one per source section aggregation): `{stage:'xref', action:'resolved',
 count}` `{stage:'xref', action:'unresolved', key, policy}` `{stage:'xref',
 action:'rate_limited', section_id, limit}` `{stage:'xref',
 action:'pattern_disabled', pattern}`
 
-#### Configuration Keys (see Section 12 additions)
+#### Configuration Keys (XRef)
 
 - `xref_enable` (bool, default true)
 - `xref_patterns` (ordered list of regex strings)
@@ -910,7 +899,7 @@ action:'pattern_disabled', pattern}`
 - `xref_resolve_appendices` (bool, default false initial)
 
 
-#### Testing
+#### Testing (XRef)
 
 - Unit: resolution of each reference type to correct slug.
 - Unresolved policies: annotate adds marker; keep leaves raw; drop removes
