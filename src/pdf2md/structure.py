@@ -116,25 +116,25 @@ def _group_spans_into_lines_ordered(spans: list[Span], y_tolerance: float) -> li
 
 def _join_spans_with_smart_spacing(spans: list[Span]) -> str:
     """Join spans with smart spacing that handles punctuation correctly.
-    
+
     Punctuation-only spans (like standalone hyphens) are joined without
     preceding spaces to ensure hyphenation repair can work correctly.
-    
+
     Args:
         spans: List of spans to join, assumed to be sorted by x-coordinate.
-        
+
     Returns:
         Joined text with appropriate spacing.
     """
     if not spans:
         return ""
-    
+
     result_parts = []
     for i, span in enumerate(spans):
         text = span.text.strip()
         if not text:
             continue
-            
+
         if i == 0:
             # First span always added without prefix
             result_parts.append(text)
@@ -147,7 +147,7 @@ def _join_spans_with_smart_spacing(spans: list[Span]) -> str:
             else:
                 # Normal span gets a space prefix
                 result_parts.append(" " + text)
-    
+
     return "".join(result_parts)
 
 

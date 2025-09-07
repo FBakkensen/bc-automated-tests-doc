@@ -30,11 +30,28 @@ pip install -e .[dev]
 ```
 
 ### 3. Run tests
-```powershell
+```bash
 pytest
 ```
 
-### 4. Run CLI (stub)
+### 4. Code Quality Checks
+Before committing, run local checks to ensure CI will pass:
+```bash
+bash scripts/local-check.sh
+```
+
+This runs the same checks as CI:
+- `ruff format --check .` - Code formatting
+- `ruff check .` - Linting
+- `mypy .` - Type checking  
+- `pytest -q` - Unit tests
+
+To fix formatting issues automatically:
+```bash
+ruff format .
+```
+
+### 5. Run CLI (stub)
 ```powershell
 pdf2md convert .\pdf\AUTOMATED_TESTING_IN_MICROSOFT_DYNAMICS_365_BUSI.pdf --out output --manifest
 ```

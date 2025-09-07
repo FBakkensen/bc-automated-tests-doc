@@ -75,6 +75,16 @@ Keep layers loosely coupled. Avoid embedding rendering concerns in ingestion or 
 - Add type hints everywhere; use `from __future__ import annotations` (already present) for forward references.
 - Avoid premature micro-optimizations until functional completeness and correctness are validated.
 
+## Code Quality & Local Checks
+- **ALWAYS run local checks before committing** to ensure CI passes. Use `bash scripts/local-check.sh` or run individual tools:
+  - `ruff format --check .` - Code formatting (matches CI exactly)
+  - `ruff check .` - Linting 
+  - `mypy .` - Type checking
+  - `pytest -q` - Unit tests
+- **Code formatting is mandatory**: Run `ruff format .` to auto-fix formatting issues before committing. CI will fail if code is not properly formatted.
+- Install dev dependencies with `pip install -e .[dev]` to get all required tools.
+- Pre-commit hooks are configured but local checks provide faster feedback.
+
 ## Future Extensions (Do Not Implement Prematurely)
 - OCR fallback, glossary extraction, plugin hooks — reference PRD Roadmap; leave clear extension points (module boundaries, stable function signatures).
 
@@ -100,6 +110,7 @@ def run_conversion(cfg, pdf_path, out_dir, *, max_pages=None):
 - Add/extend a unit test for every new heuristic or transformation.
 - Keep new modules under `src/pdf2md/` and update README only when functionality is user-visible.
 - Do not break existing public CLI parameters without documenting the change.
+- **Run `bash scripts/local-check.sh` before committing** to ensure all code quality checks pass locally (matches CI pipeline exactly).
 
 ---
 Provide feedback if additional details (e.g., logging format, manifest schema draft) should be added.

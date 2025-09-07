@@ -23,9 +23,7 @@ def test_merge_lines_empty_input(config):
 
 def test_merge_lines_single_span(config):
     """Test merge_lines with a single span."""
-    spans = [
-        Span("Hello world", (0, 100, 100, 110), "Arial", 12, {}, 1, 0)
-    ]
+    spans = [Span("Hello world", (0, 100, 100, 110), "Arial", 12, {}, 1, 0)]
     result = merge_lines(spans, config)
     assert result == ["Hello world"]
 
@@ -170,7 +168,7 @@ def test_merge_lines_left_to_right_ordering(config):
     spans = [
         # Spans on same line but in wrong x-order
         Span("world", (60, 100, 100, 110), "Arial", 12, {}, 1, 1),  # Right span first
-        Span("Hello", (0, 100, 50, 110), "Arial", 12, {}, 1, 0),    # Left span second
+        Span("Hello", (0, 100, 50, 110), "Arial", 12, {}, 1, 0),  # Left span second
     ]
     result = merge_lines(spans, config)
     assert result == ["Hello world"]  # Should be reordered by x-coordinate
@@ -204,7 +202,7 @@ def test_merge_lines_multiple_spaces_normalized(config):
     """Test that multiple spaces between words are normalized to single space."""
     spans = [
         Span("Hello", (0, 100, 50, 110), "Arial", 12, {}, 1, 0),
-        Span("   ", (55, 100, 70, 110), "Arial", 12, {}, 1, 1),   # Multiple spaces
+        Span("   ", (55, 100, 70, 110), "Arial", 12, {}, 1, 1),  # Multiple spaces
         Span("world", (75, 100, 110, 110), "Arial", 12, {}, 1, 2),
     ]
     result = merge_lines(spans, config)
@@ -221,7 +219,8 @@ def test_merge_lines_punctuation_no_space_before_hyphen(config):
         Span("mation", (0, 80, 60, 90), "Arial", 12, {}, 1, 2),
     ]
     result = merge_lines(spans, config)
-    # Should produce "transfor-" on first line, then "mation" which gets repaired to "transformation"
+    # Should produce "transfor-" on first line, then "mation"
+    # which gets repaired to "transformation"
     assert result == ["transformation"]
 
 
@@ -252,7 +251,7 @@ def test_merge_lines_custom_y_tolerance(config):
     """Test that custom y_tolerance from config is respected."""
     # Set a smaller tolerance
     config.line_merge_y_tolerance = 1.0
-    
+
     spans = [
         # Spans with y-coordinates that would merge with default tolerance but not with smaller
         Span("Hello", (0, 100, 50, 110), "Arial", 12, {}, 1, 0),
