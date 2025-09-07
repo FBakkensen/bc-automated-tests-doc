@@ -88,11 +88,11 @@ class PdfIngestor:
             font_size = char.get("size", 0.0)
 
             # Start new span if font characteristics change or significant gap
-            if (current_span_chars and
-                (font_name != current_font_name or
-                 abs(font_size - current_font_size) > 0.1 or
-                 self._has_significant_gap(current_span_chars[-1], char))):
-
+            if current_span_chars and (
+                font_name != current_font_name
+                or abs(font_size - current_font_size) > 0.1
+                or self._has_significant_gap(current_span_chars[-1], char)
+            ):
                 # Finalize current span
                 span = self._create_span_from_chars(current_span_chars, page_num, order_index)
                 if span:

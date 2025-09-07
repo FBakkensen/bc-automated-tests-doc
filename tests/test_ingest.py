@@ -70,9 +70,10 @@ class TestPdfIngestor:
 
         # Check strictly increasing
         for i in range(1, len(order_indices)):
-            assert order_indices[i] > order_indices[i-1], \
-                f"Order index not strictly increasing: {order_indices[i-1]} >= " \
+            assert order_indices[i] > order_indices[i - 1], (
+                f"Order index not strictly increasing: {order_indices[i - 1]} >= "
                 f"{order_indices[i]} at position {i}"
+            )
 
     def test_non_empty_spans_only(self) -> None:
         """Test that only non-empty spans are produced."""
@@ -207,12 +208,7 @@ class TestPdfIngestor:
         ingestor = PdfIngestor(config)
 
         # Test various bold font name patterns
-        bold_fonts = [
-            "Arial-Bold",
-            "Times-Black",
-            "DejaVu-Heavy",
-            "SomeFont-Thick"
-        ]
+        bold_fonts = ["Arial-Bold", "Times-Black", "DejaVu-Heavy", "SomeFont-Thick"]
 
         for font_name in bold_fonts:
             style_flags = ingestor._detect_style_flags(font_name, [])
@@ -225,11 +221,7 @@ class TestPdfIngestor:
         ingestor = PdfIngestor(config)
 
         # Test various italic font name patterns
-        italic_fonts = [
-            "Arial-Italic",
-            "Times-Oblique",
-            "DejaVu-Slant"
-        ]
+        italic_fonts = ["Arial-Italic", "Times-Oblique", "DejaVu-Slant"]
 
         for font_name in italic_fonts:
             style_flags = ingestor._detect_style_flags(font_name, [])
@@ -242,12 +234,7 @@ class TestPdfIngestor:
         ingestor = PdfIngestor(config)
 
         # Test regular font names
-        regular_fonts = [
-            "Arial",
-            "Times-Roman",
-            "DejaVuSans",
-            "Helvetica"
-        ]
+        regular_fonts = ["Arial", "Times-Roman", "DejaVuSans", "Helvetica"]
 
         for font_name in regular_fonts:
             style_flags = ingestor._detect_style_flags(font_name, [])
