@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .headings import assign_heading_levels
-from .utils import deterministic_slug
+from .utils import generate_unique_slug
 
 if TYPE_CHECKING:
     from .config import ToolConfig
@@ -65,12 +65,15 @@ def build_tree(blocks: list[Block], config: ToolConfig) -> list[SectionNode]:
     # Create SectionNode objects for each heading
     section_nodes = []
     block_indices = {}  # Map block indices to their corresponding sections
+    used_slugs: set[str] = set()  # Track used slugs for collision detection
 
     for i, (block, level) in enumerate(headings):
         text = " ".join(span.text for span in block.spans).strip()
 
-        # Create slug using deterministic_slug with prefix for ordering
-        slug = deterministic_slug(text, prefix_index=i, width=config.slug_prefix_width)
+        # Create slug using generate_unique_slug with collision handling
+        slug = generate_unique_slug(
+            text, prefix_index=i, width=config.slug_prefix_width, used_slugs=used_slugs
+        )
 
         # Calculate page span from block
         if block.spans:

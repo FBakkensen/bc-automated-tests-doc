@@ -18,6 +18,75 @@ def deterministic_slug(text: str, prefix_index: int | None = None, width: int = 
     return s
 
 
+def generate_unique_slug(
+    text: str, prefix_index: int | None, width: int, used_slugs: set[str]
+) -> str:
+    """Generate a unique slug, adding collision suffix if needed.
+
+    Args:
+        text: The text to slugify
+        prefix_index: Optional numeric prefix index
+        width: Width for zero-padding the prefix
+        used_slugs: Set of already used slugs to check for collisions
+
+    Returns:
+        A unique slug, with collision suffix (-2, -3, etc.) if needed
+
+    Examples:
+        >>> used = set()
+        >>> slug1 = generate_unique_slug("Test", 1, 2, used)
+        >>> slug1
+        '01-test'
+        >>> used.add(slug1)
+        >>> slug2 = generate_unique_slug("Test", 2, 2, used)
+        >>> slug2
+        '02-test-2'
+    """
+    # Generate the base slug without considering collisions first
+    base_text_slug = deterministic_slug(text, prefix_index=None, width=width)
+
+    # Check if this base text slug (without prefix) has been used before
+    collision_count = sum(1 for slug in used_slugs if _extract_base_slug(slug) == base_text_slug)
+
+    if collision_count == 0:
+        # No collision, use the normal slug
+        result_slug = deterministic_slug(text, prefix_index, width)
+    else:
+        # Collision detected, add suffix
+        suffix = collision_count + 1
+        if prefix_index is not None:
+            result_slug = f"{prefix_index:0{width}d}-{base_text_slug}-{suffix}"
+        else:
+            result_slug = f"{base_text_slug}-{suffix}"
+
+    used_slugs.add(result_slug)
+    return result_slug
+
+
+def _extract_base_slug(full_slug: str) -> str:
+    """Extract the base slug text from a full slug (removing prefix and collision suffix).
+
+    Examples:
+        >>> _extract_base_slug("01-introduction")
+        'introduction'
+        >>> _extract_base_slug("02-introduction-3")
+        'introduction'
+        >>> _extract_base_slug("introduction-2")
+        'introduction'
+    """
+    # Remove numeric prefix if present (format: "NNN-...")
+    if "-" in full_slug and full_slug.split("-", 1)[0].isdigit():
+        without_prefix = full_slug.split("-", 1)[1]
+    else:
+        without_prefix = full_slug
+
+    # Remove collision suffix if present (format: "...-N" where N is a number)
+    parts = without_prefix.rsplit("-", 1)
+    if len(parts) == 2 and parts[1].isdigit():
+        return parts[0]
+    return without_prefix
+
+
 HYPHENATION_RE = re.compile(r"([A-Za-z]{3,})-$")
 
 
