@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 
 from pdf2md.config import ToolConfig
-from pdf2md.models import Span
-from pdf2md.structure import merge_lines
+from pdf2md.models import BlockType, Span
+from pdf2md.structure import assemble_blocks, merge_lines
 
 
 @pytest.fixture
@@ -260,6 +260,179 @@ def test_merge_lines_custom_y_tolerance(config):
     result = merge_lines(spans, config)
     # With tolerance = 1.0, these should NOT merge (difference > 1.0)
     assert result == ["Hello", "world"]
+
+
+# Tests for assemble_blocks function
+
+
+def test_assemble_blocks_empty_input(config):
+    """Test assemble_blocks with empty input."""
+    result = assemble_blocks([], config)
+    assert result == []
+
+
+def test_assemble_blocks_single_paragraph(config):
+    """Test assembling a single paragraph from consecutive text lines."""
+    spans = [
+        Span("Hello world", (0, 100, 100, 110), "Arial", 12, {}, 1, 0),
+        Span("This is a test", (0, 80, 120, 90), "Arial", 12, {}, 1, 1),
+        Span("of paragraph assembly", (0, 60, 150, 70), "Arial", 12, {}, 1, 2),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.PARAGRAPH
+    # The block should have a valid bbox and page span
+    assert result[0].bbox != (0.0, 0.0, 0.0, 0.0)
+    assert result[0].page_span == (1, 1)
+
+
+def test_assemble_blocks_paragraph_with_empty_line(config):
+    """Test that empty lines create separate blocks and break paragraphs."""
+    spans = [
+        Span("First paragraph", (0, 100, 100, 110), "Arial", 12, {}, 1, 0),
+        Span("", (0, 80, 0, 90), "Arial", 12, {}, 1, 1),  # Empty line
+        Span("Second paragraph", (0, 60, 120, 70), "Arial", 12, {}, 1, 2),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 3
+    assert result[0].block_type == BlockType.PARAGRAPH
+    assert result[1].block_type == BlockType.EMPTY_LINE
+    assert result[2].block_type == BlockType.PARAGRAPH
+
+
+def test_assemble_blocks_bullet_list_detection(config):
+    """Test that bullet list items are detected correctly."""
+    spans = [
+        Span("• First item", (0, 100, 80, 110), "Arial", 12, {}, 1, 0),
+        Span("• Second item", (0, 80, 90, 90), "Arial", 12, {}, 1, 1),
+        Span("• Third item", (0, 60, 85, 70), "Arial", 12, {}, 1, 2),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.LIST
+
+
+def test_assemble_blocks_ordered_list_detection(config):
+    """Test that ordered list items are detected correctly."""
+    spans = [
+        Span("1. First item", (0, 100, 80, 110), "Arial", 12, {}, 1, 0),
+        Span("2. Second item", (0, 80, 90, 90), "Arial", 12, {}, 1, 1),
+        Span("3. Third item", (0, 60, 85, 70), "Arial", 12, {}, 1, 2),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.LIST
+
+
+def test_assemble_blocks_code_block_detection_by_indent(config):
+    """Test that indented code blocks are detected when meeting minimum line threshold."""
+    # Use default config values: code_min_lines=2, code_indent_threshold=4
+    spans = [
+        Span("    def hello():", (40, 100, 120, 110), "Courier", 10, {"mono": True}, 1, 0),
+        Span("        print('hello')", (80, 80, 160, 90), "Courier", 10, {"mono": True}, 1, 1),
+        Span("        return True", (80, 60, 150, 70), "Courier", 10, {"mono": True}, 1, 2),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.CODE_BLOCK
+    assert "dedented_lines" in result[0].meta
+    # Check that indentation was removed properly
+    dedented = result[0].meta["dedented_lines"]
+    assert dedented[0] == "def hello():"
+    assert dedented[1] == "    print('hello')"
+    assert dedented[2] == "    return True"
+
+
+def test_assemble_blocks_insufficient_code_lines(config):
+    """Test that insufficient indented lines don't create a code block."""
+    # Only one indented line, but code_min_lines=2
+    spans = [
+        Span("    single_line = True", (40, 100, 120, 110), "Courier", 10, {"mono": True}, 1, 0),
+        Span("Regular paragraph text", (0, 80, 120, 90), "Arial", 12, {}, 1, 1),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.PARAGRAPH  # Not enough lines for code block
+
+
+def test_assemble_blocks_respect_code_min_lines_config(config):
+    """Test that code_min_lines config parameter is respected."""
+    config.code_min_lines = 3  # Require 3 lines minimum
+
+    spans = [
+        Span("    line1 = 1", (40, 100, 80, 110), "Courier", 10, {"mono": True}, 1, 0),
+        Span(
+            "    line2 = 2", (40, 80, 80, 90), "Courier", 10, {"mono": True}, 1, 1
+        ),  # Only 2 lines
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert (
+        result[0].block_type == BlockType.PARAGRAPH
+    )  # Not enough for code block with higher threshold
+
+
+def test_assemble_blocks_respect_code_indent_threshold(config):
+    """Test that code_indent_threshold config parameter is respected."""
+    config.code_indent_threshold = 8  # Require more indentation
+
+    spans = [
+        Span("    not_enough_indent", (40, 100, 120, 110), "Courier", 10, {"mono": True}, 1, 0),
+        Span("    still_not_enough", (40, 80, 120, 90), "Courier", 10, {"mono": True}, 1, 1),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.PARAGRAPH  # Not indented enough for code block
+
+
+def test_assemble_blocks_mixed_content(config):
+    """Test assembling mixed content: paragraph, list, and code block."""
+    spans = [
+        # Paragraph
+        Span("Introduction text", (0, 120, 100, 130), "Arial", 12, {}, 1, 0),
+        Span("", (0, 110, 0, 115), "Arial", 12, {}, 1, 1),  # Empty line
+        # List
+        Span("• First item", (0, 100, 80, 110), "Arial", 12, {}, 1, 2),
+        Span("• Second item", (0, 90, 85, 100), "Arial", 12, {}, 1, 3),
+        Span("", (0, 80, 0, 85), "Arial", 12, {}, 1, 4),  # Empty line
+        # Code block
+        Span("    def function():", (40, 70, 120, 80), "Courier", 10, {"mono": True}, 1, 5),
+        Span("        return True", (80, 60, 150, 70), "Courier", 10, {"mono": True}, 1, 6),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 5  # paragraph, empty, list, empty, code
+    assert result[0].block_type == BlockType.PARAGRAPH
+    assert result[1].block_type == BlockType.EMPTY_LINE
+    assert result[2].block_type == BlockType.LIST
+    assert result[3].block_type == BlockType.EMPTY_LINE
+    assert result[4].block_type == BlockType.CODE_BLOCK
+
+
+def test_assemble_blocks_code_with_empty_lines(config):
+    """Test that empty lines within code blocks are preserved."""
+    spans = [
+        Span("    def function():", (40, 100, 120, 110), "Courier", 10, {"mono": True}, 1, 0),
+        Span("", (40, 90, 40, 95), "Courier", 10, {"mono": True}, 1, 1),  # Empty line in code
+        Span("        return True", (80, 80, 150, 90), "Courier", 10, {"mono": True}, 1, 2),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.CODE_BLOCK
+    dedented = result[0].meta["dedented_lines"]
+    assert len(dedented) == 3
+    assert dedented[0] == "def function():"
+    assert dedented[1] == ""  # Empty line preserved
+    assert dedented[2] == "    return True"
 
 
 if __name__ == "__main__":
