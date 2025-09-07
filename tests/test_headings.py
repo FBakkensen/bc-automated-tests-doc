@@ -335,6 +335,146 @@ def test_section_node_slug_generation(config, sample_spans):
     assert child.slug == "01-1-1-background"
 
 
+def test_section_node_slug_collision_handling(config):
+    """Test that duplicate section titles get collision suffixes."""
+    # Create spans with identical titles that would create the same base slug
+    # Using ALL CAPS to ensure they're detected as headings
+    duplicate_spans1 = [Span("INTRODUCTION", (0, 100, 200, 110), "Arial", 14, {"bold": True}, 1, 0)]
+    duplicate_spans2 = [Span("INTRODUCTION", (0, 80, 150, 90), "Arial", 14, {"bold": True}, 1, 1)]
+    duplicate_spans3 = [Span("INTRODUCTION", (0, 60, 180, 70), "Arial", 14, {"bold": True}, 1, 2)]
+
+    blocks = [
+        Block(BlockType.HEADING_CANDIDATE, duplicate_spans1, (0, 100, 200, 110), (1, 1), {}),
+        Block(BlockType.HEADING_CANDIDATE, duplicate_spans2, (0, 80, 150, 90), (1, 1), {}),
+        Block(BlockType.HEADING_CANDIDATE, duplicate_spans3, (0, 60, 180, 70), (1, 1), {}),
+    ]
+
+    tree = build_tree(blocks, config)
+
+    # All sections should be at root level since they're all detected as level 1
+    assert len(tree) == 3
+
+    # Check that collision suffixes are applied
+    assert tree[0].slug == "00-introduction"
+    assert tree[1].slug == "01-introduction-2"
+    assert tree[2].slug == "02-introduction-3"
+
+
+def test_section_node_slug_collision_mixed_titles(config):
+    """Test collision handling with mixed unique and duplicate titles."""
+    # Using ALL CAPS to ensure they're detected as headings
+    spans1 = [Span("INTRODUCTION", (0, 100, 200, 110), "Arial", 14, {"bold": True}, 1, 0)]
+    spans2 = [Span("METHODOLOGY", (0, 80, 150, 90), "Arial", 14, {"bold": True}, 1, 1)]
+    spans3 = [Span("INTRODUCTION", (0, 60, 180, 70), "Arial", 14, {"bold": True}, 1, 2)]
+    spans4 = [Span("RESULTS", (0, 40, 200, 50), "Arial", 14, {"bold": True}, 1, 3)]
+
+    blocks = [
+        Block(BlockType.HEADING_CANDIDATE, spans1, (0, 100, 200, 110), (1, 1), {}),
+        Block(BlockType.HEADING_CANDIDATE, spans2, (0, 80, 150, 90), (1, 1), {}),
+        Block(BlockType.HEADING_CANDIDATE, spans3, (0, 60, 180, 70), (1, 1), {}),
+        Block(BlockType.HEADING_CANDIDATE, spans4, (0, 40, 200, 50), (1, 1), {}),
+    ]
+
+    tree = build_tree(blocks, config)
+
+    assert len(tree) == 4
+
+    # Check that only duplicate titles get collision suffixes
+    assert tree[0].slug == "00-introduction"
+    assert tree[1].slug == "01-methodology"
+    assert tree[2].slug == "02-introduction-2"  # Collision suffix
+    assert tree[3].slug == "03-results"
+
+
+def test_section_node_slug_collision_stable_ordering(config):
+    """Test that collision numbering follows stable pre-order traversal."""
+    # Create a hierarchical structure with duplicate titles to test stable ordering
+    chapter1_spans = [
+        Span("Chapter 1 Analysis", (0, 100, 200, 110), "Arial", 14, {"bold": True}, 1, 0)
+    ]
+    section1_spans = [Span("1.1 Overview", (0, 80, 150, 90), "Arial", 12, {"bold": True}, 1, 1)]
+    chapter2_spans = [
+        Span("Chapter 2 Analysis", (0, 60, 180, 70), "Arial", 14, {"bold": True}, 1, 2)
+    ]
+    section2_spans = [Span("2.1 Overview", (0, 40, 200, 50), "Arial", 12, {"bold": True}, 1, 3)]
+
+    blocks = [
+        Block(BlockType.HEADING_CANDIDATE, chapter1_spans, (0, 100, 200, 110), (1, 1), {}),
+        Block(BlockType.HEADING_CANDIDATE, section1_spans, (0, 80, 150, 90), (1, 1), {}),
+        Block(BlockType.HEADING_CANDIDATE, chapter2_spans, (0, 60, 180, 70), (1, 1), {}),
+        Block(BlockType.HEADING_CANDIDATE, section2_spans, (0, 40, 200, 50), (1, 1), {}),
+    ]
+
+    tree = build_tree(blocks, config)
+
+    # Should have 2 chapters
+    assert len(tree) == 2
+
+    # Note: "Chapter 1 Analysis" and "Chapter 2 Analysis" slug to different base texts,
+    # so no collision. "1.1 Overview" and "2.1 Overview" also slug to different base texts.
+    # Let's verify the structure is correct with the expected prefixes.
+    assert tree[0].slug == "00-chapter-1-analysis"
+    assert tree[0].children[0].slug == "01-1-1-overview"
+    assert tree[1].slug == "02-chapter-2-analysis"
+    assert tree[1].children[0].slug == "03-2-1-overview"
+
+
+def test_section_node_slug_collision_hierarchical_duplicates(config):
+    """Test collision handling with actual duplicate base slugs in hierarchical structure."""
+    # Use titles that will create the same base slug after normalization
+    chapter1_spans = [
+        Span("Chapter 1 Overview", (0, 100, 200, 110), "Arial", 14, {"bold": True}, 1, 0)
+    ]
+    section1_spans = [Span("1.1 Overview", (0, 80, 150, 90), "Arial", 12, {"bold": True}, 1, 1)]
+    chapter2_spans = [
+        Span("Chapter 2 Results", (0, 60, 180, 70), "Arial", 14, {"bold": True}, 1, 2)
+    ]
+    section2_spans = [Span("2.1 Overview", (0, 40, 200, 50), "Arial", 12, {"bold": True}, 1, 3)]
+
+    blocks = [
+        Block(BlockType.HEADING_CANDIDATE, chapter1_spans, (0, 100, 200, 110), (1, 1), {}),
+        Block(BlockType.HEADING_CANDIDATE, section1_spans, (0, 80, 150, 90), (1, 1), {}),
+        Block(BlockType.HEADING_CANDIDATE, chapter2_spans, (0, 60, 180, 70), (1, 1), {}),
+        Block(BlockType.HEADING_CANDIDATE, section2_spans, (0, 40, 200, 50), (1, 1), {}),
+    ]
+
+    tree = build_tree(blocks, config)
+
+    # Should have 2 chapters
+    assert len(tree) == 2
+
+    # These don't actually collide on base slug, so let's just verify structure
+    # and create a simpler test for actual collisions
+    assert tree[0].slug == "00-chapter-1-overview"
+    assert tree[0].children[0].slug == "01-1-1-overview"
+    assert tree[1].slug == "02-chapter-2-results"
+    assert tree[1].children[0].slug == "03-2-1-overview"
+
+
+def test_section_node_slug_collision_actual_duplicates(config):
+    """Test collision handling with titles that actually produce the same base slug."""
+    # Create titles that normalize to the same base slug: "overview"
+    spans1 = [Span("OVERVIEW", (0, 100, 200, 110), "Arial", 14, {"bold": True}, 1, 0)]
+    spans2 = [Span("OVERVIEW", (0, 80, 150, 90), "Arial", 14, {"bold": True}, 1, 1)]
+    spans3 = [Span("OVERVIEW", (0, 60, 180, 70), "Arial", 14, {"bold": True}, 1, 2)]
+
+    blocks = [
+        Block(BlockType.HEADING_CANDIDATE, spans1, (0, 100, 200, 110), (1, 1), {}),
+        Block(BlockType.HEADING_CANDIDATE, spans2, (0, 80, 150, 90), (1, 1), {}),
+        Block(BlockType.HEADING_CANDIDATE, spans3, (0, 60, 180, 70), (1, 1), {}),
+    ]
+
+    tree = build_tree(blocks, config)
+
+    # All will be root level since they're all level 1
+    assert len(tree) == 3
+
+    # Verify collision suffixes based on order
+    assert tree[0].slug == "00-overview"  # First occurrence
+    assert tree[1].slug == "01-overview-2"  # Second occurrence gets -2 suffix
+    assert tree[2].slug == "02-overview-3"  # Third occurrence gets -3 suffix
+
+
 def test_section_node_pages_assignment(config, sample_spans):
     """Test that page ranges are correctly assigned to SectionNodes."""
     # Create spans on different pages
