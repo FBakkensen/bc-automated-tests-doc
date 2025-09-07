@@ -179,7 +179,6 @@ class TestPdfIngestor:
         ingestor = PdfIngestor(config)
 
         # Use tempfile for safer temporary path handling
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp_dir:
             non_existent_path = Path(tmp_dir) / "non_existent_file.pdf"
 

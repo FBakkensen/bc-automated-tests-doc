@@ -133,9 +133,9 @@ class PdfIngestor:
         x2_start = char2.get("x0", 0.0)
         gap = x2_start - x1_end
 
-        # Consider gap significant if it's more than 2 character widths
+        # Consider gap significant if it's more than configured character widths
         char_width = char1.get("width", 0.0)
-        return bool(gap > char_width * 2)
+        return bool(gap > char_width * self.config.char_gap_threshold)
 
     def _create_span_from_chars(
         self, chars: list[dict[str, Any]], page_num: int, order_index: int
@@ -225,7 +225,7 @@ class PdfIngestor:
                 font_size = first_char.get("size", 12)
                 # Heuristic: bold text typically has wider characters relative to font size
                 width_ratio = char_width / font_size if font_size > 0 else 0
-                if width_ratio > 0.8:  # Threshold for detecting bold text
+                if width_ratio > self.config.bold_width_ratio_threshold:
                     style_flags["bold"] = True
 
         return style_flags
