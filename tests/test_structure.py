@@ -435,5 +435,37 @@ def test_assemble_blocks_code_with_empty_lines(config):
     assert dedented[2] == "    return True"
 
 
+def test_assemble_blocks_avoid_heading_false_positives(config):
+    """Test that numbered headings are not incorrectly classified as list items."""
+    # Test cases that should be treated as paragraphs, not list items
+    heading_spans = [
+        # Typical chapter headings that should not be lists
+        Span("1. Introduction", (0, 100, 80, 110), "Arial", 14, {"bold": True}, 1, 0),
+        Span("2. Background", (0, 80, 90, 90), "Arial", 14, {"bold": True}, 1, 1),
+        Span("3. Methodology", (0, 60, 85, 70), "Arial", 14, {"bold": True}, 1, 2),
+    ]
+
+    result = assemble_blocks(heading_spans, config)
+    # Should create one paragraph block (consecutive paragraphs get grouped)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.PARAGRAPH
+
+    # Test mixed case - actual list items should still be detected
+    mixed_spans = [
+        # This looks like a heading
+        Span("1. Introduction", (0, 100, 80, 110), "Arial", 14, {"bold": True}, 1, 0),
+        Span("", (0, 80, 0, 80), "Arial", 12, {}, 1, 1),  # Empty line
+        # These look like actual list items
+        Span("1. First task to complete", (0, 60, 120, 70), "Arial", 12, {}, 1, 2),
+        Span("2. Second task in sequence", (0, 40, 130, 50), "Arial", 12, {}, 1, 3),
+    ]
+
+    result = assemble_blocks(mixed_spans, config)
+    assert len(result) == 3  # Paragraph, empty line, list
+    assert result[0].block_type == BlockType.PARAGRAPH  # The heading
+    assert result[1].block_type == BlockType.EMPTY_LINE
+    assert result[2].block_type == BlockType.LIST  # The actual list items
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

@@ -178,9 +178,47 @@ def _classify_line_with_indentation(line: str, config: ToolConfig) -> str:
 
     stripped = line.strip()
 
-    # Check for list items
-    if BULLET_LIST_RE.match(stripped) or ORDERED_LIST_RE.match(stripped):
+    # Check for list items - be more conservative about ordered lists to avoid headings
+    if BULLET_LIST_RE.match(stripped):
         return BlockType.LIST_ITEM
+
+    # For ordered lists, add some heuristics to avoid false positives with headings
+    if ORDERED_LIST_RE.match(stripped):
+        # Get the leading indentation
+        leading_spaces = len(line) - len(line.lstrip())
+
+        # Extract the number and the rest of the text
+        number_match = ORDERED_LIST_RE.match(stripped)
+        if number_match:
+            number_text = number_match.group()
+            remaining_text = stripped[len(number_text) :].strip()
+
+            # Very conservative check: only reject if it looks like a heading
+            # - No indentation (starts at margin)
+            # - Very short text (1-3 words)
+            # - Starts with a capital letter
+            # - Contains typical heading words like "Introduction", "Overview", "Summary"
+            if (
+                leading_spaces == 0
+                and len(remaining_text.split()) <= 3
+                and remaining_text
+                and remaining_text[0].isupper()
+                and any(
+                    heading_word in remaining_text.lower()
+                    for heading_word in [
+                        'introduction',
+                        'overview',
+                        'summary',
+                        'conclusion',
+                        'abstract',
+                        'background',
+                        'methodology',
+                        'results',
+                    ]
+                )
+            ):
+                return BlockType.PARAGRAPH
+            return BlockType.LIST_ITEM
 
     # Check for code by indentation (using original line with whitespace)
     leading_spaces = len(line) - len(line.lstrip())
@@ -326,44 +364,6 @@ def _create_code_block_from_line_groups(line_groups: list[list[Span]]) -> Block 
     )
 
 
-def _extract_code_block(
-    lines: list[str], start_idx: int, config: ToolConfig
-) -> tuple[list[str], int]:
-    """Extract consecutive indented lines that form a code block.
-
-    Args:
-        lines: List of all lines.
-        start_idx: Index to start looking for code block.
-        config: ToolConfig instance with code detection parameters.
-
-    Returns:
-        Tuple of (code_lines, number_of_lines_consumed).
-    """
-    code_lines = []
-    i = start_idx
-
-    while i < len(lines):
-        line = lines[i]
-        stripped = line.strip()
-
-        # Empty lines are allowed in code blocks
-        if not stripped:
-            code_lines.append(line)
-            i += 1
-            continue
-
-        # Check if line is indented enough to be code
-        leading_spaces = len(line) - len(line.lstrip())
-        if leading_spaces >= config.code_indent_threshold:
-            code_lines.append(line)
-            i += 1
-        else:
-            # Non-indented line ends the code block
-            break
-
-    return code_lines, i - start_idx
-
-
 def _can_continue_block(current_type: str, new_type: str) -> bool:
     """Check if a line of new_type can continue a block of current_type.
 
@@ -382,47 +382,6 @@ def _can_continue_block(current_type: str, new_type: str) -> bool:
 
     # Same types can always continue
     return current_type == new_type
-
-
-def _create_block(block_type: str, lines: list[str], spans: list[Span]) -> Block | None:
-    """Create a Block object from classified lines and spans.
-
-    Args:
-        block_type: Type of block to create.
-        lines: Text lines for the block.
-        spans: Span objects for the block.
-
-    Returns:
-        Block object or None if creation fails.
-    """
-    if not lines or not block_type:
-        return None
-
-    from .models import Block, BlockType
-
-    # Calculate bounding box and page span from spans
-    if spans:
-        bbox = _calculate_combined_bbox(spans)
-        page_span = (min(s.page for s in spans), max(s.page for s in spans))
-    else:
-        # Fallback if no spans available
-        bbox = (0.0, 0.0, 0.0, 0.0)
-        page_span = (1, 1)
-
-    # Create metadata based on block type
-    meta: dict[str, object] = {}
-
-    if block_type == BlockType.LIST_ITEM:
-        # Convert single list item to a List containing one ListItem
-        meta["list_level"] = 0  # TODO: Implement proper nesting detection
-        block_type = BlockType.LIST
-    elif block_type == BlockType.CODE_BLOCK:
-        # Remove leading indentation for code blocks
-        dedented_lines = _dedent_code_lines(lines)
-        meta["code_language"] = None  # TODO: Implement language detection
-        meta["dedented_lines"] = dedented_lines
-
-    return Block(block_type=block_type, spans=spans, bbox=bbox, page_span=page_span, meta=meta)
 
 
 def _create_empty_line_block() -> Block | None:
@@ -455,23 +414,21 @@ def _dedent_code_lines(lines: list[str]) -> list[str]:
         return []
 
     # Find minimum indentation of non-empty lines
-    min_indent = float('inf')
+    min_indent = None
     for line in lines:
         stripped = line.strip()
         if stripped:  # Only consider non-empty lines
             leading_spaces = len(line) - len(line.lstrip())
-            min_indent = min(min_indent, leading_spaces)
+            min_indent = leading_spaces if min_indent is None else min(min_indent, leading_spaces)
 
-    if min_indent == float('inf'):
+    if min_indent is None:
         min_indent = 0
-
-    min_indent = int(min_indent)  # Ensure it's an integer for slicing
 
     # Remove the common indentation
     dedented = []
     for line in lines:
         if line.strip():  # Non-empty line
-            dedented.append(line[min_indent:] if len(line) > min_indent else line.lstrip())
+            dedented.append(line[min_indent:])
         else:
             dedented.append("")  # Preserve empty lines
 
