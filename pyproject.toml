@@ -88,6 +88,12 @@ disallow_incomplete_defs = true
 strict_equality = true
 pretty = true
 disable_error_code = ["import-untyped"]
+exclude = [
+  '^build/',
+  '^dist/',
+  '^\.venv/',
+  '^\.mypy_cache/',
+]
 
 [[tool.mypy.overrides]]
 module = ["pdf2md.*"]
