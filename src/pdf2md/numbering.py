@@ -32,6 +32,8 @@ class NumberingProcessor:
         self.seen_chapter_numbers: set[int] = set()
         self.seen_appendix_letters: set[str] = set()
         self.first_chapter_detected = False
+        # Track seen section paths for gap detection
+        self.seen_section_paths: dict[tuple[int, ...], int] = {}
 
     def process_heading_block(self, block: Block, text: str) -> dict[str, object]:
         """Process a heading block and extract numbering information.
@@ -68,8 +70,11 @@ class NumberingProcessor:
 
     def _process_chapter_numbering(self, explicit_number: int, meta: dict[str, object]) -> None:
         """Process chapter numbering with global counter and reset detection."""
-        # Check for duplicates
-        if explicit_number in self.seen_chapter_numbers:
+        # Check for duplicates only when resets are not allowed
+        if (
+            not self.config.numbering_allow_chapter_resets
+            and explicit_number in self.seen_chapter_numbers
+        ):
             logger.warning("duplicate_chapter_number", extra={"explicit_number": explicit_number})
             # Treat as implicit sequence (no explicit number in meta)
         else:
@@ -113,12 +118,14 @@ class NumberingProcessor:
             return
 
         # Check for out-of-order letters
-        expected_letters = set('ABCDEFGHIJKLMNOPQRSTUVWXYZ'[: len(self.seen_appendix_letters) + 1])
-        if self.seen_appendix_letters and letter not in expected_letters:
-            logger.warning(
-                "appendix_out_of_order",
-                extra={"letter": letter, "expected": sorted(expected_letters)},
-            )
+        if self.seen_appendix_letters:
+            last_letter = max(self.seen_appendix_letters, key=lambda letter_char: ord(letter_char))
+            expected_letter = chr(ord(last_letter) + 1)
+            if letter != expected_letter:
+                logger.warning(
+                    "appendix_out_of_order",
+                    extra={"letter": letter, "expected": expected_letter},
+                )
 
         self.seen_appendix_letters.add(letter)
         meta["appendix_letter"] = letter
@@ -141,22 +148,33 @@ class NumberingProcessor:
 
     def _check_section_gaps(self, segments: list[int]) -> None:
         """Check for gaps in section numbering and log if found."""
-        # Simple gap detection: check if there's a jump of more than 1 between consecutive numbers
-        if len(segments) >= 2:
-            # For the test case 3.2 -> 3.5, we detect the gap in the second segment
-            # Check the last segment against reasonable expectations
-            current_section = segments[-1]
+        if len(segments) < 2:
+            return
 
-            # In a real implementation, we'd track previously seen section numbers
-            # For now, detect obvious gaps (jumps > 2)
-            if current_section > 3:  # 3.5 has a gap from expected 3.3 or 3.4
+        # Track section paths to detect gaps
+        section_tuple = tuple(segments)
+        prefix = section_tuple[:-1]  # All but the last segment
+        current_number = segments[-1]
+
+        # Check if we've seen this prefix before
+        if prefix in self.seen_section_paths:
+            last_seen = self.seen_section_paths[prefix]
+            # Check for gap: if current number is more than 1 greater than last seen
+            if current_number > last_seen + 1:
                 logger.warning(
                     "section_gap_detected",
                     extra={
                         "section_path": ".".join(map(str, segments)),
-                        "current_section": current_section,
+                        "current_section": current_number,
+                        "previous_section": last_seen,
+                        "gap_size": current_number - last_seen - 1,
                     },
                 )
+
+        # Update the highest seen number for this prefix
+        self.seen_section_paths[prefix] = max(
+            self.seen_section_paths.get(prefix, 0), current_number
+        )
 
     def _is_at_page_top(self, block: Block) -> bool:
         """Check if a block is at the top of its page."""
