@@ -110,6 +110,33 @@ def make_basic_headings(output_path: Path) -> Path:
     return output_path
 
 
+def make_multipage(output_path: Path) -> Path:
+    """Create a multi-page PDF for testing exclude_pages functionality."""
+    _register_fonts()
+    c = canvas.Canvas(str(output_path), pagesize=letter, invariant=True)
+    _set_constant_metadata(c)
+
+    x_margin = 72.0
+
+    # Page 1
+    draw_heading(c, level=1, text="Page 1 Title", xy=(x_margin, 700.0))
+    draw_paragraph(c, text="This is content on page 1.", xy=(x_margin, 660.0))
+    c.showPage()
+
+    # Page 2
+    draw_heading(c, level=1, text="Page 2 Title", xy=(x_margin, 700.0))
+    draw_paragraph(c, text="This is content on page 2.", xy=(x_margin, 660.0))
+    c.showPage()
+
+    # Page 3
+    draw_heading(c, level=1, text="Page 3 Title", xy=(x_margin, 700.0))
+    draw_paragraph(c, text="This is content on page 3.", xy=(x_margin, 660.0))
+    c.showPage()
+
+    c.save()
+    return output_path
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", type=Path, default=Path("tests/fixtures/pdfs"))
@@ -118,6 +145,8 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     if args.case == "basic_headings":
         out = make_basic_headings(args.out / "basic_headings.pdf")
+    elif args.case == "multipage":
+        out = make_multipage(args.out / "multipage.pdf")
     else:
         raise SystemExit(f"unknown case: {args.case}")
     print(f"Wrote fixture: {out}")

@@ -23,6 +23,8 @@ class ToolConfig(BaseModel):
     image_dpi: int = 200
     footnote_merge: bool = True
     language_detection: bool = False
+    char_gap_threshold: float = 2.0
+    bold_width_ratio_threshold: float = 0.8
 
     @classmethod
     def from_file(cls, path: str) -> ToolConfig:
