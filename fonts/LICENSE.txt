@@ -1,0 +1,5 @@
+DejaVu fonts are distributed under the terms of the Bitstream Vera license with additional 
+permissions. See https://dejavu-fonts.github.io/License.html for the full text.
+This repository vendors the following files for deterministic PDF test fixtures:
+- DejaVuSans.ttf
+- DejaVuSansMono.ttf

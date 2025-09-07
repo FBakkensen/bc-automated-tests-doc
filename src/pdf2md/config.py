@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import pathlib
 
-import yaml  # type: ignore[import-untyped]
+import yaml
 from pydantic import BaseModel, Field
 
 
