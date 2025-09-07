@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
-from pdf2md.utils import deterministic_slug, generate_unique_slug
+import pytest
+
+from pdf2md.utils import clear_slug_cache, deterministic_slug, generate_unique_slug
+
+
+@pytest.fixture(autouse=True)
+def clear_cache():
+    """Clear the slug cache before each test to ensure test isolation."""
+    clear_slug_cache()
+    yield
+    clear_slug_cache()
 
 
 class TestDeterministicSlugFormat:
@@ -182,6 +192,26 @@ class TestCollisionSuffixing:
 
         assert result1 == "00-chapters-introduction"
         assert result2 == "01-chapters-introduction-2"
+
+    def test_numbered_titles_no_false_collision(self):
+        """Test that numbered titles like 'Section 1', 'Section 2' don't falsely collide."""
+        used_slugs: set[str] = set()
+
+        # "Section 1" should get "00-section-1"
+        result1 = generate_unique_slug("Section 1", prefix_index=0, width=2, used_slugs=used_slugs)
+        assert result1 == "00-section-1"
+
+        # "Section 2" should get "01-section-2" (not a collision with Section 1)
+        result2 = generate_unique_slug("Section 2", prefix_index=1, width=2, used_slugs=used_slugs)
+        assert result2 == "01-section-2"
+
+        # Plain "Section" should get "02-section" (not section-3)
+        result3 = generate_unique_slug("Section", prefix_index=2, width=2, used_slugs=used_slugs)
+        assert result3 == "02-section"
+
+        # Second occurrence of "Section" should get collision suffix
+        result4 = generate_unique_slug("Section", prefix_index=3, width=2, used_slugs=used_slugs)
+        assert result4 == "03-section-2"
 
     def test_used_slugs_set_mutation(self):
         """Test that the used_slugs set is properly updated."""

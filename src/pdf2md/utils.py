@@ -7,6 +7,10 @@ from slugify import slugify as _slugify
 
 SLUG_SAFE_REMOVE = ["'", '"']
 
+# Module-level cache to track base slug counts per used_slugs set
+# This avoids the need to reverse-engineer base slugs from final slugs
+_base_slug_cache: dict[int, dict[str, int]] = {}
+
 
 def deterministic_slug(text: str, prefix_index: int | None = None, width: int = 2) -> str:
     base = text.strip().lower()
@@ -45,8 +49,14 @@ def generate_unique_slug(
     # Generate the base slug without considering collisions first
     base_text_slug = deterministic_slug(text, prefix_index=None, width=width)
 
-    # Check if this base text slug (without prefix) has been used before
-    collision_count = sum(1 for slug in used_slugs if _extract_base_slug(slug) == base_text_slug)
+    # Get or create base slug counter for this used_slugs set
+    # This avoids the need to reverse-engineer base slugs from final slugs
+    cache_key = id(used_slugs)
+    if cache_key not in _base_slug_cache:
+        _base_slug_cache[cache_key] = {}
+
+    base_counts = _base_slug_cache[cache_key]
+    collision_count = base_counts.get(base_text_slug, 0)
 
     if collision_count == 0:
         # No collision, use the normal slug
@@ -59,32 +69,20 @@ def generate_unique_slug(
         else:
             result_slug = f"{base_text_slug}-{suffix}"
 
+    # Update counts
+    base_counts[base_text_slug] = collision_count + 1
     used_slugs.add(result_slug)
     return result_slug
 
 
-def _extract_base_slug(full_slug: str) -> str:
-    """Extract the base slug text from a full slug (removing prefix and collision suffix).
+def clear_slug_cache() -> None:
+    """Clear the internal slug cache to prevent memory leaks.
 
-    Examples:
-        >>> _extract_base_slug("01-introduction")
-        'introduction'
-        >>> _extract_base_slug("02-introduction-3")
-        'introduction'
-        >>> _extract_base_slug("introduction-2")
-        'introduction'
+    This should be called when you're done with a set of used_slugs
+    to prevent the cache from growing indefinitely.
     """
-    # Remove numeric prefix if present (format: "NNN-...")
-    if "-" in full_slug and full_slug.split("-", 1)[0].isdigit():
-        without_prefix = full_slug.split("-", 1)[1]
-    else:
-        without_prefix = full_slug
-
-    # Remove collision suffix if present (format: "...-N" where N is a number)
-    parts = without_prefix.rsplit("-", 1)
-    if len(parts) == 2 and parts[1].isdigit():
-        return parts[0]
-    return without_prefix
+    global _base_slug_cache
+    _base_slug_cache.clear()
 
 
 HYPHENATION_RE = re.compile(r"([A-Za-z]{3,})-$")
