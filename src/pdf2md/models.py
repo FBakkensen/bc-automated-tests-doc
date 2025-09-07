@@ -13,6 +13,7 @@ class Span:
     font_size: float
     style_flags: dict[str, bool]
     page: int
+    order_index: int
 
 
 @dataclass
