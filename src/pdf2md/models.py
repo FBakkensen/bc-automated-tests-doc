@@ -71,6 +71,44 @@ class Block:
 
 
 @dataclass
+class SectionNode:
+    """Hierarchical logical section (chapter/section) with support for freezing."""
+
+    title: str
+    level: int
+    slug: str | None = None
+    blocks: list[Block] = field(default_factory=list)
+    children: list[SectionNode] = field(default_factory=list)
+    pages: tuple[int, int] = (0, 0)
+    meta: dict[str, object] = field(default_factory=dict)
+    _frozen: bool = field(default=False, init=False)
+
+    def freeze(self) -> None:
+        """Freeze this node, making children and blocks lists immutable."""
+        if not self._frozen:
+            self._frozen = True
+            # Freeze all children recursively
+            for child in self.children:
+                child.freeze()
+
+    def is_frozen(self) -> bool:
+        """Check if this node is frozen."""
+        return self._frozen
+
+    def add_child(self, child: SectionNode) -> None:
+        """Add a child node. Raises ValueError if frozen."""
+        if self._frozen:
+            raise ValueError("Cannot modify frozen SectionNode")
+        self.children.append(child)
+
+    def add_block(self, block: Block) -> None:
+        """Add a block. Raises ValueError if frozen."""
+        if self._frozen:
+            raise ValueError("Cannot modify frozen SectionNode")
+        self.blocks.append(block)
+
+
+@dataclass
 class ManifestEntry:
     slug: str
     title: str
