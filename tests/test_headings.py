@@ -355,6 +355,117 @@ def test_section_node_pages_assignment(config, sample_spans):
     assert child.pages == (3, 3)
 
 
+# Tests for Task 6: Numbering and Appendices Integration
+
+
+def test_chapter_numbering_metadata_attached(config):
+    """Test that chapter numbering metadata is attached to blocks."""
+    chapter_spans = [
+        Span("Chapter 1 Introduction", (0, 10, 200, 20), "Arial", 14, {"bold": True}, 1, 0)
+    ]
+    chapter_block = Block(BlockType.HEADING_CANDIDATE, chapter_spans, (0, 10, 200, 20), (1, 1), {})
+
+    headings = assign_heading_levels([chapter_block], config)
+
+    assert len(headings) == 1
+    block, level = headings[0]
+
+    # Check that numbering metadata was attached
+    assert "chapter_number" in block.meta
+    assert block.meta["chapter_number"] == 1
+
+
+def test_section_path_metadata_attached(config):
+    """Test that section path metadata is attached to blocks."""
+    section_spans = [Span("1.2.3 Methodology", (0, 10, 200, 20), "Arial", 12, {"bold": True}, 1, 0)]
+    section_block = Block(BlockType.HEADING_CANDIDATE, section_spans, (0, 10, 200, 20), (1, 1), {})
+
+    headings = assign_heading_levels([section_block], config)
+
+    assert len(headings) == 1
+    block, level = headings[0]
+
+    # Check that section path metadata was attached
+    assert "section_path" in block.meta
+    assert block.meta["section_path"] == [1, 2, 3]
+
+
+def test_appendix_metadata_attached(config):
+    """Test that appendix metadata is attached to blocks."""
+    # First need a chapter to enable appendix detection
+    chapter_spans = [
+        Span("Chapter 1 Introduction", (0, 10, 200, 20), "Arial", 14, {"bold": True}, 1, 0)
+    ]
+    chapter_block = Block(BlockType.HEADING_CANDIDATE, chapter_spans, (0, 10, 200, 20), (1, 1), {})
+
+    # Appendix at top of page (y=10 is near top)
+    appendix_spans = [Span("Appendix A Data", (0, 10, 200, 20), "Arial", 14, {"bold": True}, 2, 0)]
+    appendix_block = Block(
+        BlockType.HEADING_CANDIDATE, appendix_spans, (0, 10, 200, 20), (2, 2), {}
+    )
+
+    blocks = [chapter_block, appendix_block]
+    headings = assign_heading_levels(blocks, config)
+
+    assert len(headings) == 2
+
+    # Check chapter
+    chapter_block, chapter_level = headings[0]
+    assert "chapter_number" in chapter_block.meta
+
+    # Check appendix
+    appendix_block, appendix_level = headings[1]
+    assert "appendix_letter" in appendix_block.meta
+    assert appendix_block.meta["appendix_letter"] == "A"
+
+
+def test_global_chapter_numbering_across_parts_integration(config):
+    """Test integration of global chapter numbering across parts."""
+    blocks = [
+        # Part I
+        Block(
+            BlockType.HEADING_CANDIDATE,
+            [Span("Part I Overview", (0, 10, 200, 20), "Arial", 16, {"bold": True}, 1, 0)],
+            (0, 10, 200, 20),
+            (1, 1),
+            {},
+        ),
+        # Chapter 1
+        Block(
+            BlockType.HEADING_CANDIDATE,
+            [Span("Chapter 1 Introduction", (0, 10, 200, 20), "Arial", 14, {"bold": True}, 2, 0)],
+            (0, 10, 200, 20),
+            (2, 2),
+            {},
+        ),
+        # Part II
+        Block(
+            BlockType.HEADING_CANDIDATE,
+            [Span("Part II Analysis", (0, 10, 200, 20), "Arial", 16, {"bold": True}, 3, 0)],
+            (0, 10, 200, 20),
+            (3, 3),
+            {},
+        ),
+        # Chapter 1 again (should get global number 2)
+        Block(
+            BlockType.HEADING_CANDIDATE,
+            [Span("Chapter 1 Methodology", (0, 10, 200, 20), "Arial", 14, {"bold": True}, 4, 0)],
+            (0, 10, 200, 20),
+            (4, 4),
+            {},
+        ),
+    ]
+
+    headings = assign_heading_levels(blocks, config)
+
+    # Find the chapter blocks
+    chapter_blocks = [h for h in headings if "chapter_number" in h[0].meta]
+
+    assert len(chapter_blocks) == 2
+    assert chapter_blocks[0][0].meta["chapter_number"] == 1
+    assert chapter_blocks[1][0].meta["chapter_number"] == 2  # Global numbering
+
+
 def test_section_node_basic_functionality():
     """Test basic SectionNode functionality without config dependency."""
     # Test creation and basic operations

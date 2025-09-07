@@ -26,6 +26,12 @@ class ToolConfig(BaseModel):
     char_gap_threshold: float = 2.0
     bold_width_ratio_threshold: float = 0.8
     line_merge_y_tolerance: float = 3.0
+    # Numbering configuration
+    numbering_validate_gaps: bool = True
+    numbering_allow_chapter_resets: bool = False
+    numbering_max_depth: int = 6
+    # Appendix configuration
+    appendix_requires_page_break: bool = True
 
     @classmethod
     def from_file(cls, path: str) -> ToolConfig:
