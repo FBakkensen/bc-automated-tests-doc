@@ -25,6 +25,7 @@ class ToolConfig(BaseModel):
     language_detection: bool = False
     char_gap_threshold: float = 2.0
     bold_width_ratio_threshold: float = 0.8
+    line_merge_y_tolerance: float = 3.0
 
     @classmethod
     def from_file(cls, path: str) -> ToolConfig:

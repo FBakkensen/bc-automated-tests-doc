@@ -6,15 +6,21 @@ and repair hyphenation breaks across line boundaries.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from .utils import repair_hyphenation
 
 if TYPE_CHECKING:
+    from .config import ToolConfig
     from .models import Span
 
 
-def merge_lines(spans: list[Span]) -> list[str]:
+# Pattern to match punctuation-only spans that should not have spaces before them
+PUNCTUATION_ONLY_RE = re.compile(r'^[^\w\s]+$')
+
+
+def merge_lines(spans: list[Span], config: ToolConfig) -> list[str]:
     """Merge spans into logical text lines with space normalization.
 
     Groups spans by their vertical position and merges them into logical
@@ -24,19 +30,22 @@ def merge_lines(spans: list[Span]) -> list[str]:
 
     Args:
         spans: List of Span objects to merge. Will be sorted by order_index.
+        config: ToolConfig instance containing line merging parameters.
 
     Returns:
         List of merged text lines with hyphenation repaired.
 
     Examples:
         >>> # Mock spans for testing
+        >>> from pdf2md.config import ToolConfig
+        >>> config = ToolConfig()
         >>> spans = [
         ...     Span("Hello", (0, 100, 50, 110), "Arial", 12, {}, 1, 0),
         ...     Span("world", (60, 100, 100, 110), "Arial", 12, {}, 1, 1),
         ...     Span("This is", (0, 80, 60, 90), "Arial", 12, {}, 1, 2),
         ...     Span("a test", (70, 80, 120, 90), "Arial", 12, {}, 1, 3),
         ... ]
-        >>> merge_lines(spans)
+        >>> merge_lines(spans, config)
         ['Hello world', 'This is a test']
     """
     if not spans:
@@ -46,7 +55,7 @@ def merge_lines(spans: list[Span]) -> list[str]:
     sorted_spans = sorted(spans, key=lambda s: s.order_index)
 
     # Group spans into logical lines, preserving order
-    lines = _group_spans_into_lines_ordered(sorted_spans)
+    lines = _group_spans_into_lines_ordered(sorted_spans, config.line_merge_y_tolerance)
 
     # Convert each line group to text
     text_lines = []
@@ -54,8 +63,8 @@ def merge_lines(spans: list[Span]) -> list[str]:
         # Sort spans within the line by x-coordinate (left to right)
         line_spans.sort(key=lambda s: s.bbox[0])  # Sort by x0 (left edge)
 
-        # Join text from spans in the line with single spaces
-        line_text = " ".join(span.text.strip() for span in line_spans if span.text.strip())
+        # Join text from spans in the line with appropriate spacing
+        line_text = _join_spans_with_smart_spacing(line_spans)
 
         if line_text:
             text_lines.append(line_text)
@@ -64,7 +73,7 @@ def merge_lines(spans: list[Span]) -> list[str]:
     return repair_hyphenation(text_lines)
 
 
-def _group_spans_into_lines_ordered(spans: list[Span]) -> list[list[Span]]:
+def _group_spans_into_lines_ordered(spans: list[Span], y_tolerance: float) -> list[list[Span]]:
     """Group spans that belong to the same logical line, preserving order.
 
     Uses y-coordinate proximity and order_index to determine which spans
@@ -73,6 +82,7 @@ def _group_spans_into_lines_ordered(spans: list[Span]) -> list[list[Span]]:
 
     Args:
         spans: List of spans to group, assumed to be sorted by order_index.
+        y_tolerance: Tolerance for considering spans on the same line (in PDF units).
 
     Returns:
         List of span groups, each representing a logical line, in order.
@@ -82,9 +92,6 @@ def _group_spans_into_lines_ordered(spans: list[Span]) -> list[list[Span]]:
 
     lines: list[list[Span]] = []
     current_line: list[Span] = [spans[0]]
-
-    # Tolerance for considering spans on the same line (in PDF units)
-    y_tolerance = 3.0
 
     for span in spans[1:]:
         # Get y-coordinate (middle of bounding box) for comparison
@@ -105,6 +112,43 @@ def _group_spans_into_lines_ordered(spans: list[Span]) -> list[list[Span]]:
         lines.append(current_line)
 
     return lines
+
+
+def _join_spans_with_smart_spacing(spans: list[Span]) -> str:
+    """Join spans with smart spacing that handles punctuation correctly.
+    
+    Punctuation-only spans (like standalone hyphens) are joined without
+    preceding spaces to ensure hyphenation repair can work correctly.
+    
+    Args:
+        spans: List of spans to join, assumed to be sorted by x-coordinate.
+        
+    Returns:
+        Joined text with appropriate spacing.
+    """
+    if not spans:
+        return ""
+    
+    result_parts = []
+    for i, span in enumerate(spans):
+        text = span.text.strip()
+        if not text:
+            continue
+            
+        if i == 0:
+            # First span always added without prefix
+            result_parts.append(text)
+        else:
+            # Check if this span is punctuation-only
+            is_punctuation = PUNCTUATION_ONLY_RE.match(text)
+            if is_punctuation:
+                # Join punctuation directly without space
+                result_parts.append(text)
+            else:
+                # Normal span gets a space prefix
+                result_parts.append(" " + text)
+    
+    return "".join(result_parts)
 
 
 def _get_span_y_center(span: Span) -> float:
