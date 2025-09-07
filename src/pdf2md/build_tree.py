@@ -59,6 +59,9 @@ def build_tree(blocks: list[Block], config: ToolConfig) -> list[SectionNode]:
     if not headings:
         return []
 
+    # Create a mapping from blocks to their indices for O(1) lookup
+    block_to_index = {id(block): idx for idx, block in enumerate(blocks)}
+
     # Create SectionNode objects for each heading
     section_nodes = []
     block_indices = {}  # Map block indices to their corresponding sections
@@ -88,8 +91,8 @@ def build_tree(blocks: list[Block], config: ToolConfig) -> list[SectionNode]:
         )
 
         section_nodes.append(section)
-        # Find the index of this block in the original blocks list
-        block_index = blocks.index(block)
+        # Find the index of this block in the original blocks list using O(1) lookup
+        block_index = block_to_index[id(block)]
         block_indices[block_index] = section
 
     # Build the hierarchy by establishing parent-child relationships

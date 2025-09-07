@@ -78,11 +78,6 @@ def detect_heading_level(text: str, config: ToolConfig) -> int | None:
     if words and all(word.isupper() and len(word) > 2 for word in words):
         return 1
 
-    # Check if it has typical heading characteristics but no specific pattern
-    # This handles cases like "Introduction" that pass is_heading_candidate
-    if len(words) <= 4 and len(text_stripped) <= 50:  # Short, likely heading
-        return 1
-
     # If it passed is_heading_candidate but no specific pattern,
     # we should still return a level since it was deemed a candidate
     return 1
