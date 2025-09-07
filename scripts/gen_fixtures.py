@@ -26,8 +26,14 @@ FONTS_DIR = HERE / "fonts"
 
 
 def _register_fonts() -> None:
-    pdfmetrics.registerFont(TTFont("DejaVuSans", str(FONTS_DIR / "DejaVuSans.ttf")))
-    pdfmetrics.registerFont(TTFont("DejaVuSansMono", str(FONTS_DIR / "DejaVuSansMono.ttf")))
+    fonts = [
+        ("DejaVuSans", FONTS_DIR / "DejaVuSans.ttf"),
+        ("DejaVuSansMono", FONTS_DIR / "DejaVuSansMono.ttf"),
+    ]
+    registered = set(pdfmetrics.getRegisteredFontNames())
+    for name, path in fonts:
+        if name not in registered:
+            pdfmetrics.registerFont(TTFont(name, str(path)))
 
 
 def draw_heading(c: canvas.Canvas, *, level: int, text: str, xy: tuple[float, float]) -> None:
@@ -79,7 +85,8 @@ def _set_constant_metadata(c: canvas.Canvas) -> None:
     from contextlib import suppress
 
     # _dateFormatter is consulted when writing CreationDate/ModDate
-    with suppress(Exception):  # pragma: no cover - defensive
+    # ReportLab may forbid setting this private attribute; ignore failures
+    with suppress(AttributeError):  # pragma: no cover -- defensive
         info._dateFormatter = lambda yyyy, mm, dd, hh, m, s: "D:20240101000000Z"
 
 
