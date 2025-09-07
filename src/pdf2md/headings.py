@@ -2,6 +2,7 @@
 
 This module provides functionality to detect headings from text blocks
 and assign appropriate levels based on patterns, font sizes, and other heuristics.
+It integrates with the numbering module for chapter numbering and appendix detection.
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from .numbering import NumberingProcessor
 from .utils import is_heading_candidate
 
 if TYPE_CHECKING:
@@ -88,6 +90,7 @@ def assign_heading_levels(blocks: list[Block], config: ToolConfig) -> list[tuple
 
     Processes a list of blocks and identifies which ones are headings,
     assigning appropriate levels based on patterns and heuristics.
+    Also applies numbering normalization and appendix detection.
 
     Args:
         blocks: List of Block objects to process
@@ -113,6 +116,8 @@ def assign_heading_levels(blocks: list[Block], config: ToolConfig) -> list[tuple
         1
     """
     headings = []
+    # Create numbering processor for this document
+    numbering_processor = NumberingProcessor(config)
 
     for block in blocks:
         # Only process heading candidates
@@ -127,6 +132,12 @@ def assign_heading_levels(blocks: list[Block], config: ToolConfig) -> list[tuple
         level = detect_heading_level(text, config)
 
         if level is not None:
+            # Process numbering and attach metadata
+            numbering_meta = numbering_processor.process_heading_block(block, text)
+
+            # Merge numbering metadata into block's metadata
+            block.meta.update(numbering_meta)
+
             headings.append((block, level))
 
     return headings
