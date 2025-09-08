@@ -56,6 +56,42 @@ ruff format .
 pdf2md convert .\pdf\AUTOMATED_TESTING_IN_MICROSOFT_DYNAMICS_365_BUSI.pdf --out output --manifest
 ```
 
+## GitHub Copilot Agent Setup
+
+For GitHub Copilot Agents to work effectively with this project, all development tools and dependencies need to be preinstalled. We provide an automated setup script that follows [GitHub's recommendations](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/customize-the-agent-environment#preinstalling-tools-or-dependencies-in-copilots-environment).
+
+### Quick Setup
+
+```bash
+bash .github/copilot/agent/setup.sh
+```
+
+This script automatically installs:
+- Python 3.11+ with all project dependencies
+- Node.js 20+ and npm for documentation tools  
+- Global npm packages: markdownlint-cli, @mermaid-js/mermaid-cli
+- pandoc for document conversion
+- Pre-commit hooks configuration
+
+The script is idempotent and cross-platform (Linux, macOS, partial Windows support).
+
+### Manual Verification
+
+After running the setup script, verify everything works:
+
+```bash
+# Test code quality tools
+bash scripts/local-check.sh
+
+# Test documentation validation
+bash scripts/validate-md.sh
+
+# Test Python environment
+source .venv/bin/activate && python -c "import pdf2md; print('✓ pdf2md package available')"
+```
+
+For detailed setup documentation, troubleshooting, and manual installation instructions, see [`docs/CopilotAgentSetup.md`](docs/CopilotAgentSetup.md).
+
 ## Documentation Validation Workflow
 
 This project includes a system for validating Markdown files in the `doc/` directory for syntax errors, including Markdown linting, Mermaid diagram validation, and rendering with Pandoc. It is integrated as a pre-commit hook and a GitHub Actions CI step to catch issues early.
