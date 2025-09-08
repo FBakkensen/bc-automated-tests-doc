@@ -56,6 +56,10 @@ ruff format .
 pdf2md convert .\pdf\AUTOMATED_TESTING_IN_MICROSOFT_DYNAMICS_365_BUSI.pdf --out output --manifest
 ```
 
+## GitHub Copilot Agent Setup
+
+For GitHub Copilot Agents, environment setup steps are defined in [`.github/copilot/copilot-setup-steps.yml`](.github/copilot/copilot-setup-steps.yml). This file uses standard GitHub Actions to install Python, Node.js, and all required development tools following [GitHub's recommendations](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/customize-the-agent-environment#preinstalling-tools-or-dependencies-in-copilots-environment).
+
 ## Documentation Validation Workflow
 
 This project includes a system for validating Markdown files in the `doc/` directory for syntax errors, including Markdown linting, Mermaid diagram validation, and rendering with Pandoc. It is integrated as a pre-commit hook and a GitHub Actions CI step to catch issues early.

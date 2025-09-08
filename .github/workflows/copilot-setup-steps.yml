@@ -1,0 +1,40 @@
+name: Copilot Setup Steps
+
+on:
+  # Keep this manual-only so it never runs automatically in CI.
+  workflow_dispatch:
+
+jobs:
+  copilot-setup-steps:
+    # Per GitHub’s requirements for Copilot setup, use Ubuntu x64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          # Ensure cache keys update when deps change
+          cache-dependency-path: |
+            pyproject.toml
+            setup.cfg
+            setup.py
+            requirements*.txt
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          # Cache based on lockfile when present
+          cache-dependency-path: |
+            package-lock.json
+            npm-shrinkwrap.json
+
+      - name: Install project (dev)
+        run: pip install -U pip && pip install -e .[dev]
