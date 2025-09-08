@@ -268,6 +268,10 @@ def test_score_caption_candidate_pattern_variations(
         ("FIGURE 4:", True),
         ("Table 1:", True),
         ("Diagram 5:", True),
+        ("Figure:", True),  # Unnumbered caption
+        ("Fig.", True),  # Unnumbered caption
+        ("Table:", True),  # Unnumbered caption
+        ("Diagram:", True),  # Unnumbered caption
         ("Random text", False),
         ("Figures are important", False),  # Should not match mid-word
     ]
@@ -282,9 +286,16 @@ def test_score_caption_candidate_pattern_variations(
 
         score = score_caption_candidate(candidate, sample_figure, config)
 
+        # Calculate actual distance between candidate and figure
+        fig_x1, fig_y1, fig_x2, fig_y2 = sample_figure.bbox
+        cap_x1, cap_y1, cap_x2, cap_y2 = candidate.bbox
+        horizontal_distance = max(0, max(cap_x1 - fig_x2, fig_x1 - cap_x2))
+        vertical_distance = max(0, max(cap_y1 - fig_y2, fig_y1 - cap_y2))
+        actual_distance = (horizontal_distance**2 + vertical_distance**2) ** 0.5
+
         # Extract pattern component from total score
         # Pattern component = (score - distance_component - position_component) / pattern_weight
-        distance_score = 1.0 - (20 / config.figure_caption_distance)  # Distance ~20 pixels
+        distance_score = 1.0 - (actual_distance / config.figure_caption_distance)
         position_score = 1.0  # Below figure
         expected_score_without_pattern = (
             config.caption_weight_distance * distance_score

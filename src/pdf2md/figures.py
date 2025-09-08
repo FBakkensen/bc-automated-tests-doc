@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 # Pattern for detecting figure captions (case insensitive)
 CAPTION_PATTERN = re.compile(
-    r"^\s*(?:fig(?:ure)?\.?\s*\d+|table\s*\d+|diagram\s*\d+)",
+    r"^\s*(?:fig(?:ure)?\.?\s*\d*|table\s*\d*|diagram\s*\d*)(?:\s*[:.]|\s|$)",
     re.IGNORECASE,
 )
 
@@ -270,14 +270,26 @@ def _distance_to_figure(candidate: CaptionCandidate, figure: Figure) -> float:
 
 
 def build_figure_projections(figures: list[Figure], filenames: list[str]) -> list[dict[str, Any]]:
-    """Build figure projections for manifest from figures and filenames.
+    """Build figure projections for manifest from figures and pre-generated filenames.
+
+    This function creates manifest entries by combining Figure objects with their
+    corresponding pre-generated filenames. Figure IDs are generated based on the
+    position in the list (fig_000, fig_001, etc.) and should match the IDs used
+    in the filename generation process.
 
     Args:
-        figures: List of Figure objects
-        filenames: List of corresponding filenames
+        figures: List of Figure objects in display order
+        filenames: List of corresponding filenames (generated elsewhere using
+                  generate_figure_filename with matching indices)
 
     Returns:
-        List of figure projection dicts for manifest
+        List of figure projection dicts for manifest, each containing:
+        - id: Generated figure ID (fig_000, fig_001, etc.)
+        - filename: The pre-generated filename
+        - caption: Figure caption or empty string
+        - alt: Alt text or empty string
+        - page: Page number
+        - bbox: Bounding box as list
     """
     projections = []
 
