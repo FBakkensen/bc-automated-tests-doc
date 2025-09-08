@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import tempfile
 from pathlib import Path
@@ -255,7 +256,7 @@ def test_structural_hash_canonical_serialization(config: ToolConfig) -> None:
     assert hash_result == hash_result2
 
     # Verify hash excludes generated_with (should be same even if version changes)
-    test_manifest2 = test_manifest.copy()
+    test_manifest2 = copy.deepcopy(test_manifest)
     test_manifest2["generated_with"] = {"tool": "pdf2md", "version": "0.2.0"}
     hash_result3 = compute_structural_hash(test_manifest2)
     assert hash_result == hash_result3
@@ -306,3 +307,225 @@ def test_section_id_format_and_zero_padding(
     actual_ids = [section["id"] for section in manifest["sections"]]
 
     assert actual_ids == expected_ids
+
+
+def test_structural_hash_with_non_empty_footnotes(config: ToolConfig) -> None:
+    """Test structural hash computation when footnotes are present."""
+    # Create a manifest with footnotes
+    manifest_with_footnotes = {
+        "schema_version": "1.0.0",
+        "sections": [
+            {
+                "id": "sec_0000",
+                "slug": "test-section",
+                "parent_id": None,
+                "level": 1,
+                "order_index": 1,
+                "title": "Test Section",
+                "page_span": [1, 2],
+            }
+        ],
+        "figures": [],
+        "footnotes": [
+            {"id": "fn_0001", "text": "First footnote", "page": 1},
+            {"id": "fn_0000", "text": "Second footnote", "page": 2},
+        ],
+        "assets": [],
+        "cross_references": [],
+        "structural_hash": "",
+        "generated_with": {"tool": "pdf2md", "version": "0.1.0"},
+    }
+
+    # Test that footnotes are included in hash when present
+    hash_result = compute_structural_hash(manifest_with_footnotes)
+    assert hash_result.startswith("sha256:")
+
+    # Test that footnotes are properly sorted by ID in the hash
+    # Create same manifest with footnotes in different order
+    manifest_reordered = copy.deepcopy(manifest_with_footnotes)
+    manifest_reordered["footnotes"] = [
+        {"id": "fn_0000", "text": "Second footnote", "page": 2},
+        {"id": "fn_0001", "text": "First footnote", "page": 1},
+    ]
+
+    hash_reordered = compute_structural_hash(manifest_reordered)
+    # Hash should be the same because sorting happens during hash computation
+    assert hash_result == hash_reordered
+
+    # Test that empty footnotes produce different hash
+    manifest_empty_footnotes = copy.deepcopy(manifest_with_footnotes)
+    manifest_empty_footnotes["footnotes"] = []
+    hash_empty = compute_structural_hash(manifest_empty_footnotes)
+    assert hash_result != hash_empty
+
+
+def test_structural_hash_with_figures_sorting(config: ToolConfig) -> None:
+    """Test structural hash computation with figure sorting logic."""
+    # Create a manifest with figures
+    manifest_with_figures = {
+        "schema_version": "1.0.0",
+        "sections": [
+            {
+                "id": "sec_0000",
+                "slug": "test-section",
+                "parent_id": None,
+                "level": 1,
+                "order_index": 1,
+                "title": "Test Section",
+                "page_span": [1, 2],
+            }
+        ],
+        "figures": [
+            {"id": "fig_0002", "caption": "Third figure", "page": 3},
+            {"id": "fig_0000", "caption": "First figure", "page": 1},
+            {"id": "fig_0001", "caption": "Second figure", "page": 2},
+        ],
+        "footnotes": [],
+        "assets": [],
+        "cross_references": [],
+        "structural_hash": "",
+        "generated_with": {"tool": "pdf2md", "version": "0.1.0"},
+    }
+
+    # Test that figures are properly sorted by ID numeric suffix
+    hash_result = compute_structural_hash(manifest_with_figures)
+    assert hash_result.startswith("sha256:")
+
+    # Create same manifest with figures in different order
+    manifest_reordered = copy.deepcopy(manifest_with_figures)
+    manifest_reordered["figures"] = [
+        {"id": "fig_0001", "caption": "Second figure", "page": 2},
+        {"id": "fig_0002", "caption": "Third figure", "page": 3},
+        {"id": "fig_0000", "caption": "First figure", "page": 1},
+    ]
+
+    hash_reordered = compute_structural_hash(manifest_reordered)
+    # Hash should be the same because sorting happens during hash computation
+    assert hash_result == hash_reordered
+
+
+def test_structural_hash_combined_sorting(config: ToolConfig) -> None:
+    """Test structural hash with both figures and footnotes sorting."""
+    manifest = {
+        "schema_version": "1.0.0",
+        "sections": [
+            {
+                "id": "sec_0001",
+                "slug": "second-section",
+                "parent_id": None,
+                "level": 1,
+                "order_index": 2,
+                "title": "Second Section",
+                "page_span": [3, 4],
+            },
+            {
+                "id": "sec_0000",
+                "slug": "first-section",
+                "parent_id": None,
+                "level": 1,
+                "order_index": 1,
+                "title": "First Section",
+                "page_span": [1, 2],
+            },
+        ],
+        "figures": [
+            {"id": "fig_0001", "caption": "Second figure", "page": 2},
+            {"id": "fig_0000", "caption": "First figure", "page": 1},
+        ],
+        "footnotes": [
+            {"id": "fn_0002", "text": "Third footnote", "page": 3},
+            {"id": "fn_0000", "text": "First footnote", "page": 1},
+            {"id": "fn_0001", "text": "Second footnote", "page": 2},
+        ],
+        "assets": [],
+        "cross_references": [],
+        "structural_hash": "",
+        "generated_with": {"tool": "pdf2md", "version": "0.1.0"},
+    }
+
+    # Test that all arrays are properly sorted
+    hash_result = compute_structural_hash(manifest)
+    assert hash_result.startswith("sha256:")
+
+    # Verify deterministic sorting by changing content order
+    manifest_different_order = copy.deepcopy(manifest)
+    # Reverse all arrays to test deterministic sorting
+    sections = manifest_different_order["sections"]
+    figures = manifest_different_order["figures"]
+    footnotes = manifest_different_order["footnotes"]
+
+    if isinstance(sections, list):
+        sections.reverse()
+    if isinstance(figures, list):
+        figures.reverse()
+    if isinstance(footnotes, list):
+        footnotes.reverse()
+
+    hash_different_order = compute_structural_hash(manifest_different_order)
+    # Should produce same hash due to internal sorting
+    assert hash_result == hash_different_order
+
+
+def test_parent_child_relationship_identity_comparison(
+    config: ToolConfig,
+) -> None:
+    """Test that parent lookup uses identity comparison to avoid mislinking duplicates."""
+    # Create sections with identical content but different object identity
+    section1 = SectionNode(
+        title="Duplicate Section",
+        level=2,
+        slug="duplicate-section",
+        pages=(1, 2),
+    )
+
+    section2 = SectionNode(
+        title="Duplicate Section",  # Same title
+        level=2,  # Same level
+        slug="duplicate-section",  # Same slug
+        pages=(1, 2),  # Same pages
+    )
+
+    # Create different parents
+    parent1 = SectionNode(
+        title="Parent 1",
+        level=1,
+        slug="parent-1",
+        pages=(1, 5),
+    )
+
+    parent2 = SectionNode(
+        title="Parent 2",
+        level=1,
+        slug="parent-2",
+        pages=(6, 10),
+    )
+
+    # Add the duplicate sections to different parents
+    parent1.add_child(section1)
+    parent2.add_child(section2)
+
+    # Build manifest
+    sections = [parent1, parent2]
+    manifest = build_manifest(sections, config)
+
+    # Verify that each section is correctly linked to its actual parent
+    sections_data = manifest["sections"]
+
+    # Find section1 and section2 in the manifest
+    section1_data = next(
+        s for s in sections_data if s["title"] == "Duplicate Section" and s["order_index"] == 2
+    )
+    section2_data = next(
+        s for s in sections_data if s["title"] == "Duplicate Section" and s["order_index"] == 4
+    )
+
+    # Find parent IDs
+    parent1_data = next(s for s in sections_data if s["title"] == "Parent 1")
+    parent2_data = next(s for s in sections_data if s["title"] == "Parent 2")
+
+    # Verify correct parent-child relationships using identity
+    assert section1_data["parent_id"] == parent1_data["id"]
+    assert section2_data["parent_id"] == parent2_data["id"]
+
+    # Ensure they don't both point to the same parent (which would be the bug)
+    assert section1_data["parent_id"] != section2_data["parent_id"]

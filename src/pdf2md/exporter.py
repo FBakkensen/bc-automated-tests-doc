@@ -102,10 +102,11 @@ def build_manifest(
     for i, section in enumerate(all_sections):
         order_index = i + 1  # 1-based indexing
 
-        # Find parent ID by looking up parent in the all_sections list
+        # Find parent ID by looking up parent in the all_sections list using identity
         parent_id = None
         for j, potential_parent in enumerate(all_sections):
-            if section in potential_parent.children:
+            # Use identity comparison to avoid mislinking duplicates
+            if any(child is section for child in potential_parent.children):
                 parent_id = _generate_section_id(j)
                 break
 
