@@ -92,7 +92,7 @@ class TestPdfIngestor:
             assert span.text.strip(), f"Found span with empty text: {span.text!r}"
 
     def test_style_flags_structure(self) -> None:
-        """Test that style_flags includes bold and italic keys."""
+        """Test that style_flags includes bold, italic, and mono keys."""
         config = ToolConfig()
         ingestor = PdfIngestor(config)
 
@@ -103,12 +103,14 @@ class TestPdfIngestor:
 
         spans = ingestor.extract_spans(fixture_path)
 
-        # All spans should have style_flags with bold and italic
+        # All spans should have style_flags with bold, italic, and mono
         for span in spans:
             assert "bold" in span.style_flags
             assert "italic" in span.style_flags
+            assert "mono" in span.style_flags
             assert isinstance(span.style_flags["bold"], bool)
             assert isinstance(span.style_flags["italic"], bool)
+            assert isinstance(span.style_flags["mono"], bool)
 
     def test_exclude_pages_multipage_functionality(self) -> None:
         """Test exclude_pages with multi-page PDF."""
@@ -214,6 +216,7 @@ class TestPdfIngestor:
             style_flags = ingestor._detect_style_flags(font_name, [])
             assert style_flags["bold"], f"Should detect bold for font: {font_name}"
             assert not style_flags["italic"], f"Should not detect italic for font: {font_name}"
+            assert not style_flags["mono"], f"Should not detect mono for font: {font_name}"
 
     def test_detect_style_flags_italic_font_names(self) -> None:
         """Test style flags detection for italic font names."""
@@ -227,6 +230,7 @@ class TestPdfIngestor:
             style_flags = ingestor._detect_style_flags(font_name, [])
             assert style_flags["italic"], f"Should detect italic for font: {font_name}"
             assert not style_flags["bold"], f"Should not detect bold for font: {font_name}"
+            assert not style_flags["mono"], f"Should not detect mono for font: {font_name}"
 
     def test_detect_style_flags_regular_font_names(self) -> None:
         """Test style flags detection for regular font names."""
@@ -240,6 +244,7 @@ class TestPdfIngestor:
             style_flags = ingestor._detect_style_flags(font_name, [])
             assert not style_flags["bold"], f"Should not detect bold for font: {font_name}"
             assert not style_flags["italic"], f"Should not detect italic for font: {font_name}"
+            assert not style_flags["mono"], f"Should not detect mono for font: {font_name}"
 
     def test_detect_style_flags_empty_font_name(self) -> None:
         """Test style flags detection with empty font name."""
@@ -249,3 +254,53 @@ class TestPdfIngestor:
         style_flags = ingestor._detect_style_flags("", [])
         assert not style_flags["bold"]
         assert not style_flags["italic"]
+        assert not style_flags["mono"]
+
+    def test_detect_style_flags_mono_font_names(self) -> None:
+        """Test style flags detection for monospace font names."""
+        config = ToolConfig()
+        ingestor = PdfIngestor(config)
+
+        mono_fonts = [
+            "Courier",
+            "CourierNew",
+            "courier",
+            "COURIER-BOLD",
+            "Monaco",
+            "Menlo",
+            "Consolas",
+            "Inconsolata",
+            "Source Code Pro",
+            "Fira Code",
+            "Anonymous Pro",
+            "Lucida Console",
+            "Fixed-Width",
+            "Typewriter",
+        ]
+
+        for font_name in mono_fonts:
+            style_flags = ingestor._detect_style_flags(font_name, [])
+            assert style_flags["mono"], f"Should detect mono for font: {font_name}"
+
+    def test_detect_style_flags_non_mono_font_names(self) -> None:
+        """Test style flags detection for non-monospace font names."""
+        config = ToolConfig()
+        ingestor = PdfIngestor(config)
+
+        non_mono_fonts = [
+            "Arial",
+            "Helvetica",
+            "Times",
+            "TimesNewRoman",
+            "Verdana",
+            "Georgia",
+            "Trebuchet MS",
+            "Comic Sans MS",
+            "Calibri",
+            "Cambria",
+            "Century Gothic",
+        ]
+
+        for font_name in non_mono_fonts:
+            style_flags = ingestor._detect_style_flags(font_name, [])
+            assert not style_flags["mono"], f"Should not detect mono for font: {font_name}"
