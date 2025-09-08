@@ -17,6 +17,7 @@ class ToolConfig(BaseModel):
     exclude_pages: list[int] = Field(default_factory=list)
     heading_normalize: bool = True
     slug_prefix_width: int = 2
+    default_slug_fallback: str = "untitled"
     linkify_cross_references: bool = True
     table_confidence_min: float = 0.5
     image_format: str = "png"

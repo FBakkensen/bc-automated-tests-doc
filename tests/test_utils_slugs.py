@@ -2,17 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from pdf2md.utils import clear_slug_cache, deterministic_slug, generate_unique_slug
-
-
-@pytest.fixture(autouse=True)
-def clear_cache():
-    """Clear the slug cache before each test to ensure test isolation."""
-    clear_slug_cache()
-    yield
-    clear_slug_cache()
+from pdf2md.utils import deterministic_slug, generate_unique_slug
 
 
 class TestDeterministicSlugFormat:
