@@ -27,10 +27,10 @@ pip install -e .[dev]
 ```
 **Expected timing**: 30-45 seconds. Installs Python dependencies including pdfplumber, pytest, ruff, mypy, and all development tools.
 
-**TROUBLESHOOTING**: In environments with network restrictions or timeouts:
-- If pip install fails due to timeout errors, retry the command
+**TROUBLESHOOTING**: If pip install fails:
+- Retry the command if timeout errors occur
 - Consider using `pip install -e .[dev] --timeout 300` for extended timeout
-- The sandbox environment typically works reliably; network issues are environment-specific
+- Network access has been configured and should work reliably
 
 ### 3. Code Quality Checks (~15 seconds - NEVER CANCEL)
 Run the complete local validation suite:
@@ -65,17 +65,17 @@ pdf2md --help
 pdf2md convert pdf/AUTOMATED_TESTING_IN_MICROSOFT_DYNAMICS_365_BUSI.pdf --out /tmp/output --manifest
 ```
 
-### 5. Documentation Validation (Optional - Has Known Issues)
-**WARNING**: Documentation validation tools often fail due to network restrictions in sandboxed environments.
-
+### 5. Documentation Validation (~45 seconds)
+Run documentation validation with all tools:
 ```bash
-# Install tools (may fail due to network restrictions)
+# Install tools (network access configured)
 npm install -g @mermaid-js/mermaid-cli markdownlint-cli
 sudo apt-get update && sudo apt-get install -y pandoc
 
-# Run validation (use fallback mode in restricted environments)
-LINT_FALLBACK_OK=true VALIDATE_MERMAID=skip bash scripts/validate-md.sh doc/*.md
+# Run validation
+bash scripts/validate-md.sh doc/*.md
 ```
+**Expected timing**: ~45 seconds total for npm install, ~10 seconds for apt install, ~5 seconds for validation.
 
 ## Manual Validation Scenarios
 
@@ -184,24 +184,29 @@ Keep layers loosely coupled. Avoid embedding rendering concerns in ingestion or 
 - Install dev dependencies with `pip install -e .[dev]` to get all required tools.
 - Pre-commit hooks are configured but local checks provide faster feedback.
 
-## Known Issues & Workarounds
+## Known Issues & Notes
 
-### Network & Installation Issues
-- **pip install timeout**: Retry with `pip install -e .[dev] --timeout 300` or use shorter retry cycles
-- **Documentation validation tools**: 
-  - **markdownlint-cli installation fails**: Network restrictions prevent npm global installs. Use fallback mode: `LINT_FALLBACK_OK=true bash scripts/validate-md.sh`
-  - **mermaid-cli installation fails**: Use `VALIDATE_MERMAID=skip` to bypass mermaid validation
-  - **pandoc works reliably**: Install with `sudo apt-get install -y pandoc`
+### Environment Setup
+- **Network access**: Fully configured and working reliably for all package installations
+- **pip install timing**: 30-45 seconds expected, includes comprehensive dependency installation
+- **npm install timing**: ~45 seconds for documentation tools installation
+- **apt install timing**: ~10 seconds for pandoc installation
+
+### Documentation Validation  
+- All documentation validation tools now work reliably
+- No fallback modes or workarounds needed
+- Full toolchain available: markdownlint-cli, mermaid-cli, pandoc
 
 ### Environment-Specific Notes
-- **Sandbox reliability**: Primary development environment (where this was validated) works consistently
-- **Network restrictions**: Some environments may block external package downloads; retry or use alternative methods
-- **Timeout handling**: All timeouts are set with 50% buffer over measured times; adjust if needed
+- **Network access**: Fully functional with comprehensive package repository access
+- **Installation reliability**: All tools install successfully and reliably
+- **Timeout handling**: All timeouts are set with 50% buffer over measured times
 
 ### CI Pipeline Compatibility  
 - All local commands match CI exactly
-- Documentation validation runs in CI with full toolchain
+- Documentation validation runs successfully with full toolchain
 - Code quality checks are identical between local and CI environments
+- Network access enables full feature testing locally
 
 ## Repository Structure & Key Locations
 
@@ -281,8 +286,8 @@ ruff format --check src/pdf2md/
 # Run exactly what CI runs:
 bash scripts/local-check.sh
 
-# Documentation validation (with workarounds):
-LINT_FALLBACK_OK=true VALIDATE_MERMAID=skip bash scripts/validate-md.sh doc/*.md
+# Documentation validation:
+bash scripts/validate-md.sh doc/*.md
 ```
 
 **CRITICAL REMINDER**: Always run `bash scripts/local-check.sh` before committing. It runs the same checks as CI and prevents build failures.
