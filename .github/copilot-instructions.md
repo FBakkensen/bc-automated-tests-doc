@@ -27,6 +27,11 @@ pip install -e .[dev]
 ```
 **Expected timing**: 30-45 seconds. Installs Python dependencies including pdfplumber, pytest, ruff, mypy, and all development tools.
 
+**TROUBLESHOOTING**: In environments with network restrictions or timeouts:
+- If pip install fails due to timeout errors, retry the command
+- Consider using `pip install -e .[dev] --timeout 300` for extended timeout
+- The sandbox environment typically works reliably; network issues are environment-specific
+
 ### 3. Code Quality Checks (~15 seconds - NEVER CANCEL)
 Run the complete local validation suite:
 ```bash
@@ -181,10 +186,17 @@ Keep layers loosely coupled. Avoid embedding rendering concerns in ingestion or 
 
 ## Known Issues & Workarounds
 
-### Documentation Validation Tools
-- **markdownlint-cli installation fails**: Network restrictions prevent npm global installs. Use fallback mode: `LINT_FALLBACK_OK=true bash scripts/validate-md.sh`
-- **mermaid-cli installation fails**: Use `VALIDATE_MERMAID=skip` to bypass mermaid validation
-- **pandoc works reliably**: Install with `sudo apt-get install -y pandoc`
+### Network & Installation Issues
+- **pip install timeout**: Retry with `pip install -e .[dev] --timeout 300` or use shorter retry cycles
+- **Documentation validation tools**: 
+  - **markdownlint-cli installation fails**: Network restrictions prevent npm global installs. Use fallback mode: `LINT_FALLBACK_OK=true bash scripts/validate-md.sh`
+  - **mermaid-cli installation fails**: Use `VALIDATE_MERMAID=skip` to bypass mermaid validation
+  - **pandoc works reliably**: Install with `sudo apt-get install -y pandoc`
+
+### Environment-Specific Notes
+- **Sandbox reliability**: Primary development environment (where this was validated) works consistently
+- **Network restrictions**: Some environments may block external package downloads; retry or use alternative methods
+- **Timeout handling**: All timeouts are set with 50% buffer over measured times; adjust if needed
 
 ### CI Pipeline Compatibility  
 - All local commands match CI exactly
@@ -237,6 +249,43 @@ Repository root structure:
 3. **Code style**: `ruff check .` and `ruff format --check .`
 4. **CLI functionality**: Test `pdf2md --help` and basic conversion
 5. **Manual scenarios**: Follow validation scenarios above
+
+## Common Commands Reference
+
+### Quick Development Loop
+```bash
+# After making code changes:
+pytest -q                    # Quick test (~1-2 seconds)
+ruff format .               # Auto-fix formatting
+bash scripts/local-check.sh # Full validation (~15 seconds, NEVER CANCEL)
+```
+
+### Debugging & Development
+```bash
+# Individual tests
+pytest tests/test_utils_slugs.py::test_basic_slug_generation -v
+
+# CLI testing
+pdf2md --help
+pdf2md convert pdf/AUTOMATED_TESTING_IN_MICROSOFT_DYNAMICS_365_BUSI.pdf --out /tmp/debug
+
+# Type checking specific files
+mypy src/pdf2md/utils.py
+
+# Check specific formatting
+ruff format --check src/pdf2md/
+```
+
+### CI Simulation
+```bash
+# Run exactly what CI runs:
+bash scripts/local-check.sh
+
+# Documentation validation (with workarounds):
+LINT_FALLBACK_OK=true VALIDATE_MERMAID=skip bash scripts/validate-md.sh doc/*.md
+```
+
+**CRITICAL REMINDER**: Always run `bash scripts/local-check.sh` before committing. It runs the same checks as CI and prevents build failures.
 
 ## Future Extensions (Do Not Implement Prematurely)
 - OCR fallback, glossary extraction, plugin hooks — reference PRD Roadmap; leave clear extension points (module boundaries, stable function signatures).
