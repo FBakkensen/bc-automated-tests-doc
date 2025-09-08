@@ -467,5 +467,190 @@ def test_assemble_blocks_avoid_heading_false_positives(config):
     assert result[2].block_type == BlockType.LIST  # The actual list items
 
 
+def test_assemble_blocks_monospace_code_detection(config):
+    """Test that monospace spans are detected as code blocks."""
+    spans = [
+        Span("def hello():", (0, 100, 80, 110), "Courier", 10, {"mono": True}, 1, 0),
+        Span("    print('hello')", (0, 80, 120, 90), "Courier", 10, {"mono": True}, 1, 1),
+        Span("    return True", (0, 60, 110, 70), "Courier", 10, {"mono": True}, 1, 2),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.CODE_BLOCK
+    # Check that code language detection is present
+    assert "code_language" in result[0].meta
+    assert result[0].meta["code_language"] is None  # Should be None for now
+
+
+def test_assemble_blocks_mixed_monospace_regular_text(config):
+    """Test mixed monospace and regular text - should detect code when mostly monospace."""
+    spans = [
+        # Line with mostly monospace text should be detected as code
+        Span("def", (0, 100, 20, 110), "Courier", 10, {"mono": True}, 1, 0),
+        Span(" ", (20, 100, 25, 110), "Arial", 12, {}, 1, 1),  # Regular space
+        Span("function():", (25, 100, 80, 110), "Courier", 10, {"mono": True}, 1, 2),
+        # Second line also mostly monospace
+        Span("    return", (0, 80, 50, 90), "Courier", 10, {"mono": True}, 1, 3),
+        Span(" True", (50, 80, 80, 90), "Courier", 10, {"mono": True}, 1, 4),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.CODE_BLOCK
+
+
+def test_assemble_blocks_insufficient_monospace_lines(config):
+    """Test that insufficient monospace lines don't create a code block."""
+    # Only one monospace line, but code_min_lines=2
+    spans = [
+        Span("single_line()", (0, 100, 80, 110), "Courier", 10, {"mono": True}, 1, 0),
+        Span("Regular paragraph text", (0, 80, 120, 90), "Arial", 12, {}, 1, 1),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.PARAGRAPH  # Not enough lines for code block
+
+
+def test_assemble_blocks_monospace_and_indent_mixed(config):
+    """Test that both monospace and indented code detection work together."""
+    spans = [
+        # Monospace code without much indentation
+        Span("function test() {", (0, 120, 100, 130), "Courier", 10, {"mono": True}, 1, 0),
+        # Indented code with regular font
+        Span("    var x = 1;", (40, 100, 100, 110), "Arial", 10, {}, 1, 1),
+        Span("    return x;", (40, 80, 90, 90), "Arial", 10, {}, 1, 2),
+        # Monospace closing
+        Span("}", (0, 60, 10, 70), "Courier", 10, {"mono": True}, 1, 3),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.CODE_BLOCK
+
+
+def test_assemble_blocks_nested_bullet_lists(config):
+    """Test nested bullet list detection by x-offset."""
+    spans = [
+        # Top level items at x=10
+        Span("• First item", (10, 120, 80, 130), "Arial", 12, {}, 1, 0),
+        # Nested item at x=30 (20 point offset)
+        Span("  • Nested item", (30, 100, 100, 110), "Arial", 12, {}, 1, 1),
+        Span("  • Another nested", (30, 80, 110, 90), "Arial", 12, {}, 1, 2),
+        # Back to top level
+        Span("• Second item", (10, 60, 90, 70), "Arial", 12, {}, 1, 3),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.LIST
+    
+    # Check nesting structure
+    meta = result[0].meta
+    assert "list_items" in meta
+    list_items = meta["list_items"]
+    assert len(list_items) == 4
+    
+    # Check nesting levels
+    assert list_items[0]["level"] == 0  # First item
+    assert list_items[1]["level"] == 1  # Nested item
+    assert list_items[2]["level"] == 1  # Another nested
+    assert list_items[3]["level"] == 0  # Second item
+    
+    # Check max nesting level
+    assert meta["max_nesting_level"] == 1
+
+
+def test_assemble_blocks_nested_ordered_lists(config):
+    """Test nested ordered list detection by x-offset."""
+    spans = [
+        # Top level items at x=10
+        Span("1. First item", (10, 120, 80, 130), "Arial", 12, {}, 1, 0),
+        # Nested items at x=30
+        Span("  a. Nested item", (30, 100, 100, 110), "Arial", 12, {}, 1, 1),
+        Span("  b. Another nested", (30, 80, 110, 90), "Arial", 12, {}, 1, 2),
+        # Back to top level
+        Span("2. Second item", (10, 60, 90, 70), "Arial", 12, {}, 1, 3),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.LIST
+    
+    # Check nesting structure
+    meta = result[0].meta
+    list_items = meta["list_items"]
+    assert len(list_items) == 4
+    
+    # Check nesting levels
+    assert list_items[0]["level"] == 0  # 1. First item
+    assert list_items[1]["level"] == 1  # a. Nested item
+    assert list_items[2]["level"] == 1  # b. Another nested
+    assert list_items[3]["level"] == 0  # 2. Second item
+
+
+def test_assemble_blocks_mixed_list_types_nesting(config):
+    """Test mixed bullet and ordered list nesting."""
+    spans = [
+        # Top level bullet at x=10
+        Span("• Main topic", (10, 120, 80, 130), "Arial", 12, {}, 1, 0),
+        # Nested ordered list at x=30
+        Span("  1. First subtopic", (30, 100, 120, 110), "Arial", 12, {}, 1, 1),
+        Span("  2. Second subtopic", (30, 80, 130, 90), "Arial", 12, {}, 1, 2),
+        # Deeply nested bullet at x=50
+        Span("    • Detail point", (50, 60, 110, 70), "Arial", 12, {}, 1, 3),
+        # Back to top level
+        Span("• Another main topic", (10, 40, 120, 50), "Arial", 12, {}, 1, 4),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.LIST
+    
+    # Check nesting structure
+    meta = result[0].meta
+    list_items = meta["list_items"]
+    assert len(list_items) == 5
+    
+    # Check nesting levels (should be based on x-position clusters)
+    assert list_items[0]["level"] == 0  # • Main topic (x=10)
+    assert list_items[1]["level"] == 1  # 1. First subtopic (x=30)
+    assert list_items[2]["level"] == 1  # 2. Second subtopic (x=30)
+    assert list_items[3]["level"] == 2  # • Detail point (x=50)
+    assert list_items[4]["level"] == 0  # • Another main topic (x=10)
+    
+    # Check max nesting level
+    assert meta["max_nesting_level"] == 2
+
+
+def test_assemble_blocks_list_indent_tolerance_respected(config):
+    """Test that list_indent_tolerance is respected in nesting detection."""
+    # Set a smaller tolerance for this test
+    config.list_indent_tolerance = 5
+    
+    spans = [
+        # Items at x=10 and x=13 should be same level (within tolerance)
+        Span("• First item", (10, 120, 80, 130), "Arial", 12, {}, 1, 0),
+        Span("• Similar position", (13, 100, 100, 110), "Arial", 12, {}, 1, 1),
+        # Item at x=20 should be nested (outside tolerance)
+        Span("  • Nested item", (20, 80, 100, 90), "Arial", 12, {}, 1, 2),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.LIST
+    
+    # Check nesting structure
+    meta = result[0].meta
+    list_items = meta["list_items"]
+    assert len(list_items) == 3
+    
+    # Items at x=10 and x=13 should have same level (within tolerance of 5)
+    assert list_items[0]["level"] == list_items[1]["level"]
+    # Item at x=20 should have different level (outside tolerance)
+    assert list_items[2]["level"] != list_items[0]["level"]
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

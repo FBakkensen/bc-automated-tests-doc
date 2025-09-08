@@ -184,16 +184,16 @@ class PdfIngestor:
         )
 
     def _detect_style_flags(self, font_name: str, chars: list[dict[str, Any]]) -> dict[str, bool]:
-        """Detect style flags (bold, italic) from font characteristics.
+        """Detect style flags (bold, italic, mono) from font characteristics.
 
         Args:
             font_name: Font name from character data.
             chars: List of character dictionaries for additional analysis.
 
         Returns:
-            Dictionary with style flags (bold, italic).
+            Dictionary with style flags (bold, italic, mono).
         """
-        style_flags = {"bold": False, "italic": False}
+        style_flags = {"bold": False, "italic": False, "mono": False}
 
         if not font_name:
             return style_flags
@@ -207,6 +207,10 @@ class PdfIngestor:
         # Detect italic from font name
         italic_indicators = ["italic", "oblique", "slant"]
         style_flags["italic"] = any(indicator in font_name_lower for indicator in italic_indicators)
+
+        # Detect monospace from font name
+        mono_indicators = ["courier", "mono", "fixed", "consol", "typewriter", "lucida console", "menlo", "monaco", "inconsolata", "source code", "fira code", "anonymous pro"]
+        style_flags["mono"] = any(indicator in font_name_lower for indicator in mono_indicators)
 
         # Additional heuristics based on character properties
         if chars:

@@ -22,7 +22,7 @@ PUNCTUATION_ONLY_RE = re.compile(r'^[^\w\s]+$')
 
 # Patterns for list item detection
 BULLET_LIST_RE = re.compile(r"^\s*[•·▪▫‣-]\s+")
-ORDERED_LIST_RE = re.compile(r'^\s*\d+\.\s+')
+ORDERED_LIST_RE = re.compile(r'^\s*(\d+|[a-zA-Z])\.\s+')
 
 
 def assemble_blocks(spans: list[Span], config: ToolConfig) -> list[Block]:
@@ -96,8 +96,9 @@ def assemble_blocks(spans: list[Span], config: ToolConfig) -> list[Block]:
         original_line_text = _join_spans_preserving_leading_whitespace(line_group)
         line_type = _classify_line_with_indentation(original_line_text, config)
 
-        # Handle code blocks - look ahead for consecutive indented lines
-        if line_type == BlockType.CODE_BLOCK:
+        # Handle code blocks - check for monospace spans first, then indented lines
+        if line_type == BlockType.CODE_BLOCK or _is_monospace_line(line_group):
+            # Look ahead for consecutive code lines (either indented or monospace)
             code_line_groups, consumed = _extract_code_block_from_line_groups(
                 line_groups, i, config
             )
@@ -131,7 +132,11 @@ def assemble_blocks(spans: list[Span], config: ToolConfig) -> list[Block]:
             current_block_line_groups.append(line_group)
         else:
             # Block type changed, finish current block and start new one
-            block = _create_block_from_line_groups(current_block_type, current_block_line_groups)
+            if current_block_type == BlockType.LIST or current_block_type == BlockType.LIST_ITEM:
+                # Special handling for lists - process nesting
+                block = _create_nested_list_block(current_block_line_groups, config)
+            else:
+                block = _create_block_from_line_groups(current_block_type, current_block_line_groups)
             if block:
                 blocks.append(block)
 
@@ -142,7 +147,11 @@ def assemble_blocks(spans: list[Span], config: ToolConfig) -> list[Block]:
 
     # Don't forget the last block
     if current_block_line_groups and current_block_type is not None:
-        block = _create_block_from_line_groups(current_block_type, current_block_line_groups)
+        if current_block_type == BlockType.LIST or current_block_type == BlockType.LIST_ITEM:
+            # Special handling for lists - process nesting
+            block = _create_nested_list_block(current_block_line_groups, config)
+        else:
+            block = _create_block_from_line_groups(current_block_type, current_block_line_groups)
         if block:
             blocks.append(block)
 
@@ -229,10 +238,37 @@ def _classify_line_with_indentation(line: str, config: ToolConfig) -> str:
     return BlockType.PARAGRAPH
 
 
+def _is_monospace_line(line_spans: list[Span]) -> bool:
+    """Check if a line consists primarily of monospace spans.
+    
+    Args:
+        line_spans: List of spans in the line.
+        
+    Returns:
+        True if the line should be considered monospace for code detection.
+    """
+    if not line_spans:
+        return False
+    
+    # Consider a line monospace if most spans (by character count) are monospace
+    total_chars = 0
+    mono_chars = 0
+    
+    for span in line_spans:
+        text = span.text.strip()
+        if text:  # Only count non-empty spans
+            total_chars += len(text)
+            if span.style_flags.get("mono", False):
+                mono_chars += len(text)
+    
+    # Line is monospace if at least 60% of characters are in monospace spans
+    return total_chars > 0 and (mono_chars / total_chars) >= 0.6
+
+
 def _extract_code_block_from_line_groups(
     line_groups: list[list[Span]], start_idx: int, config: ToolConfig
 ) -> tuple[list[list[Span]], int]:
-    """Extract consecutive indented line groups that form a code block.
+    """Extract consecutive code line groups (indented or monospace) that form a code block.
 
     Args:
         line_groups: List of all line groups.
@@ -256,13 +292,16 @@ def _extract_code_block_from_line_groups(
             i += 1
             continue
 
-        # Check if line is indented enough to be code
+        # Check if line qualifies as code (either indented or monospace)
         leading_spaces = len(line_text) - len(line_text.lstrip())
-        if leading_spaces >= config.code_indent_threshold:
+        is_indented_code = leading_spaces >= config.code_indent_threshold
+        is_monospace_code = _is_monospace_line(line_group)
+        
+        if is_indented_code or is_monospace_code:
             code_line_groups.append(line_group)
             i += 1
         else:
-            # Non-indented line ends the code block
+            # Non-code line ends the code block
             break
 
     return code_line_groups, i - start_idx
@@ -301,8 +340,9 @@ def _create_block_from_line_groups(block_type: str, line_groups: list[list[Span]
     meta: dict[str, object] = {}
 
     if block_type == BlockType.LIST_ITEM:
-        # Convert single list item to a List containing one ListItem
-        meta["list_level"] = 0  # TODO: Implement proper nesting detection
+        # This should now be handled by _create_nested_list_block
+        # But keep this as fallback for single items
+        meta["list_level"] = 0
         block_type = BlockType.LIST
     elif block_type == BlockType.CODE_BLOCK:
         # Collect lines and remove leading indentation for code blocks
@@ -433,6 +473,165 @@ def _dedent_code_lines(lines: list[str]) -> list[str]:
             dedented.append("")  # Preserve empty lines
 
     return dedented
+
+
+def _create_nested_list_block(line_groups: list[list[Span]], config: ToolConfig) -> Block | None:
+    """Create a List block with proper nesting based on x-offset deltas.
+    
+    Args:
+        line_groups: List of span groups, each representing a list item line.
+        config: ToolConfig instance with list_indent_tolerance.
+        
+    Returns:
+        Block object with nested list structure or None if creation fails.
+    """
+    if not line_groups:
+        return None
+    
+    from .models import Block, BlockType
+    
+    # Flatten all spans
+    all_spans = []
+    for line_group in line_groups:
+        all_spans.extend(line_group)
+    
+    # Calculate x-positions for each list item
+    list_items = []
+    for line_group in line_groups:
+        x_pos = _get_list_item_x_position(line_group)
+        list_items.append({
+            "spans": line_group,
+            "x_position": x_pos,
+            "level": 0  # Will be calculated below
+        })
+    
+    # Calculate nesting levels based on x-position clusters
+    _assign_nesting_levels(list_items, config.list_indent_tolerance)
+    
+    # Calculate bounding box and page span
+    if all_spans:
+        bbox = _calculate_combined_bbox(all_spans)
+        page_span = (min(s.page for s in all_spans), max(s.page for s in all_spans))
+    else:
+        bbox = (0.0, 0.0, 0.0, 0.0)
+        page_span = (1, 1)
+    
+    # Store the nested structure in metadata
+    meta = {
+        "list_items": list_items,
+        "max_nesting_level": max(item["level"] for item in list_items) if list_items else 0
+    }
+    
+    return Block(
+        block_type=BlockType.LIST,
+        spans=all_spans,
+        bbox=bbox,
+        page_span=page_span,
+        meta=meta
+    )
+
+
+def _get_list_item_x_position(line_spans: list[Span]) -> float:
+    """Get the x-position of a list item's marker.
+    
+    Args:
+        line_spans: Spans for the list item line.
+        
+    Returns:
+        X-coordinate of the list marker.
+    """
+    if not line_spans:
+        return 0.0
+    
+    # Find the span containing the list marker
+    for span in line_spans:
+        text = span.text.strip()
+        if BULLET_LIST_RE.match(text) or ORDERED_LIST_RE.match(text):
+            return span.bbox[0]  # x0 coordinate
+    
+    # Fallback: use the leftmost span
+    return min(span.bbox[0] for span in line_spans)
+
+
+def _assign_nesting_levels(list_items: list[dict], tolerance: int) -> None:
+    """Assign nesting levels to list items based on x-position clusters.
+    
+    Args:
+        list_items: List of dicts with 'x_position' and 'level' keys.
+        tolerance: Tolerance for x-position clustering.
+    """
+    if not list_items:
+        return
+    
+    # Sort by x-position to find clusters
+    sorted_items = sorted(list_items, key=lambda item: item["x_position"])
+    
+    # Find unique x-position clusters within tolerance
+    clusters = []
+    for item in sorted_items:
+        x_pos = item["x_position"]
+        
+        # Find existing cluster within tolerance
+        found_cluster = None
+        for cluster in clusters:
+            if abs(x_pos - cluster["x_pos"]) <= tolerance:
+                found_cluster = cluster
+                break
+        
+        if found_cluster:
+            found_cluster["items"].append(item)
+        else:
+            clusters.append({
+                "x_pos": x_pos,
+                "items": [item],
+                "level": len(clusters)  # Level based on order of discovery
+            })
+    
+    # Assign levels to items
+    for cluster in clusters:
+        for item in cluster["items"]:
+            item["level"] = cluster["level"]
+
+
+def _calculate_list_nesting_level(line_spans: list[Span], all_spans: list[Span]) -> int:
+    """Calculate the nesting level of a list item based on x-offset.
+    
+    Args:
+        line_spans: Spans for the list item line.
+        all_spans: All spans in the document for baseline calculation.
+        
+    Returns:
+        Nesting level (0 for top level, 1 for first nested, etc.).
+    """
+    if not line_spans:
+        return 0
+    
+    # Find the leftmost x-position of the list marker
+    # Look for the first span that contains list markers
+    marker_x = None
+    for span in line_spans:
+        text = span.text.strip()
+        if BULLET_LIST_RE.match(text) or ORDERED_LIST_RE.match(text):
+            marker_x = span.bbox[0]  # x0 coordinate
+            break
+    
+    if marker_x is None:
+        # Fallback: use the leftmost span
+        marker_x = min(span.bbox[0] for span in line_spans)
+    
+    # Find the baseline x-position (leftmost margin) from all spans
+    baseline_x = min(span.bbox[0] for span in all_spans) if all_spans else 0.0
+    
+    # Calculate offset from baseline
+    x_offset = marker_x - baseline_x
+    
+    # Convert offset to nesting level
+    # Each level is approximately 20-30 points in typical PDFs
+    # We'll use 25 points per level as a reasonable default
+    POINTS_PER_LEVEL = 25.0
+    level = max(0, int(round(x_offset / POINTS_PER_LEVEL)))
+    
+    return level
 
 
 def _calculate_combined_bbox(spans: list[Span]) -> tuple[float, float, float, float]:
