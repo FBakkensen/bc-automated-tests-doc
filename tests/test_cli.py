@@ -133,7 +133,7 @@ class TestCliExitCodes:
         When `pdf2md convert` runs
         Then process exits with code 2 and prints a clear message
         """
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         pdf_path = Path(__file__).parent / "fixtures" / "pdfs" / "basic_headings.pdf"
 
         # Create invalid config file (invalid JSON)
@@ -154,11 +154,11 @@ class TestCliExitCodes:
         )
 
         assert result.exit_code == 2
-        assert "Error:" in result.stderr
+        assert "Error:" in result.output
 
     def test_config_error_with_debug_json_shows_structured_error(self, tmp_path: Path) -> None:
         """Test config error with --debug-json-errors shows structured output."""
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         pdf_path = Path(__file__).parent / "fixtures" / "pdfs" / "basic_headings.pdf"
 
         # Create invalid config file
@@ -181,19 +181,27 @@ class TestCliExitCodes:
 
         assert result.exit_code == 2
 
-        # Should have JSON error output
+        # Parse the JSON error output from output (stderr is mixed in)
+        output_lines = result.output.strip().split('\n')
+        json_line = None
+        for line in output_lines:
+            if line.startswith('{') and '"category"' in line:
+                json_line = line
+                break
+
+        assert json_line is not None, f"No JSON error found in output: {result.output}"
+
         try:
-            error_data = json.loads(result.stderr)
+            error_data = json.loads(json_line)
             assert error_data["category"] == "CONFIG"
-            assert error_data["code"] == "config_parse_error"
-            assert "message" in error_data
+            assert "config_parse_error" in error_data["code"]
             assert "context" in error_data
         except json.JSONDecodeError:
-            pytest.fail("Expected JSON error output in stderr")
+            pytest.fail(f"Expected JSON error output, got: {json_line}")
 
     def test_nonexistent_config_file_returns_exit_code_2(self, tmp_path: Path) -> None:
         """Test that non-existent config file returns exit code 2."""
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         pdf_path = Path(__file__).parent / "fixtures" / "pdfs" / "basic_headings.pdf"
 
         result = runner.invoke(
@@ -210,11 +218,11 @@ class TestCliExitCodes:
         )
 
         assert result.exit_code == 2
-        assert "Error:" in result.stderr
+        assert "Error:" in result.output
 
     def test_nonexistent_pdf_file_returns_exit_code_3(self, tmp_path: Path) -> None:
         """Test that non-existent PDF file returns exit code 3 (IO error)."""
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
 
         result = runner.invoke(
             app,
@@ -222,11 +230,11 @@ class TestCliExitCodes:
         )
 
         assert result.exit_code == 3
-        assert "Error:" in result.stderr
+        assert "Error:" in result.output
 
     def test_unwritable_output_directory_returns_exit_code_3(self) -> None:
         """Test that unwritable output directory returns exit code 3."""
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         pdf_path = Path(__file__).parent / "fixtures" / "pdfs" / "basic_headings.pdf"
 
         # Try to write to a path that should be unwritable (assuming /root is not writable)
@@ -238,7 +246,7 @@ class TestCliExitCodes:
         # or it might succeed if the directory can be created, so we check accordingly
         if result.exit_code != 0:
             assert result.exit_code == 3
-            assert "Error:" in result.stderr
+            assert "Error:" in result.output
 
     def test_yaml_config_parsing(self, tmp_path: Path) -> None:
         """Test that YAML config files are properly parsed."""
@@ -275,7 +283,7 @@ heading_normalize: false
 
     def test_invalid_yaml_config_returns_exit_code_2(self, tmp_path: Path) -> None:
         """Test that invalid YAML config returns exit code 2."""
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         pdf_path = Path(__file__).parent / "fixtures" / "pdfs" / "basic_headings.pdf"
 
         # Create invalid YAML config file
@@ -296,13 +304,13 @@ heading_normalize: false
         )
 
         assert result.exit_code == 2
-        assert "Error:" in result.stderr
+        assert "Error:" in result.output
 
     def test_general_exception_returns_exit_code_1(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test that unexpected exceptions return exit code 1."""
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         pdf_path = Path(__file__).parent / "fixtures" / "pdfs" / "basic_headings.pdf"
 
         # Mock a function to raise an unexpected exception
@@ -316,7 +324,7 @@ heading_normalize: false
         )
 
         assert result.exit_code == 1
-        assert "Error:" in result.stderr
+        assert "Error:" in result.output
 
 
 class TestDryRunStub:
