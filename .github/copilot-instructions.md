@@ -1,9 +1,105 @@
 # Copilot Project Instructions: pdf2md
 
+**ALWAYS FOLLOW THESE INSTRUCTIONS FIRST.** Only fall back to additional search and context gathering if the information in these instructions is incomplete or found to be in error.
+
 These instructions guide AI coding agents contributing to this repository. Focus on delivering the PDF→Structured Markdown pipeline incrementally while preserving determinism and testability.
 
 ## Project Purpose
 Convert technical, text-based PDFs into a multi-file, semantically structured Markdown corpus (chapters, sections, code blocks, tables, figures, footnotes, manifest, optional TOC) with high fidelity and deterministic output.
+
+## Working Effectively
+
+**CRITICAL**: Follow these exact commands for a fresh clone. All timing estimates include 50% buffer. NEVER CANCEL any long-running command.
+
+### 1. Initial Setup (Required)
+Create and activate virtual environment:
+```bash
+cd /path/to/bc-automated-tests-doc
+python -m venv .venv
+source .venv/bin/activate  # Unix/WSL
+# OR on Windows PowerShell:
+# .\.venv\Scripts\Activate.ps1
+```
+
+### 2. Install Dependencies (~45 seconds - NEVER CANCEL)
+```bash
+pip install -e .[dev]
+```
+**Expected timing**: 30-45 seconds. Installs Python dependencies including pdfplumber, pytest, ruff, mypy, and all development tools.
+
+**TROUBLESHOOTING**: If pip install fails:
+- Retry the command if timeout errors occur
+- Consider using `pip install -e .[dev] --timeout 300` for extended timeout
+- Network access has been configured and should work reliably
+
+### 3. Code Quality Checks (~15 seconds - NEVER CANCEL)
+Run the complete local validation suite:
+```bash
+bash scripts/local-check.sh
+```
+**Expected timing**: 1-2 seconds. This runs all checks that CI will run:
+- Ruff format check (~0.02 seconds)
+- Ruff linting (~0.05 seconds) 
+- Mypy type checking (~11 seconds)
+- pytest unit tests (~1.2 seconds)
+
+### 4. Individual Development Commands
+```bash
+# Run tests only (~2 seconds)
+pytest -q
+
+# Check code formatting 
+ruff format --check .
+
+# Auto-fix formatting issues
+ruff format .
+
+# Run linting
+ruff check .
+
+# Type checking (~15 seconds - NEVER CANCEL)
+mypy .
+
+# Test CLI functionality
+pdf2md --help
+pdf2md convert pdf/AUTOMATED_TESTING_IN_MICROSOFT_DYNAMICS_365_BUSI.pdf --out /tmp/output --manifest
+```
+
+### 5. Documentation Validation (~45 seconds)
+Run documentation validation with all tools:
+```bash
+# Install tools (network access configured)
+npm install -g @mermaid-js/mermaid-cli markdownlint-cli
+sudo apt-get update && sudo apt-get install -y pandoc
+
+# Run validation
+bash scripts/validate-md.sh doc/*.md
+```
+**Expected timing**: ~45 seconds total for npm install, ~10 seconds for apt install, ~5 seconds for validation.
+
+## Manual Validation Scenarios
+
+**ALWAYS** test these scenarios after making changes to ensure functionality:
+
+### Core PDF Processing Validation
+1. **CLI Help Test**: Run `pdf2md --help` - should display command usage without errors
+2. **Basic Conversion Test**: Run `pdf2md convert pdf/AUTOMATED_TESTING_IN_MICROSOFT_DYNAMICS_365_BUSI.pdf --out /tmp/test-output --manifest`
+   - Should complete without errors
+   - Should display configuration object
+   - Should report "Stubbed conversion complete"
+3. **Config Loading Test**: Conversion should load and display configuration with all expected fields
+4. **Output Directory Test**: Ensure the tool can write to specified output directories
+
+### Code Quality Validation  
+1. **Formatting Test**: Run `ruff format .` followed by `ruff format --check .` - should report "files already formatted"
+2. **Linting Test**: Run `ruff check .` - should report "All checks passed!"
+3. **Type Safety Test**: Run `mypy .` - should report "Success: no issues found" (notes about untyped functions are acceptable)
+4. **Test Suite Test**: Run `pytest -q` - all tests should pass, no failures
+
+### Pre-Commit Validation
+1. **Local Check Script**: Run `bash scripts/local-check.sh` - should pass all 4 stages
+2. **Individual Tool Tests**: Verify each tool (ruff, mypy, pytest) works independently
+3. **CI Compatibility**: Local checks should match what CI will run
 
 ## High-Level Architecture (Planned)
 1. Ingestion: Stream PDF pages → raw layout objects (pdfplumber + pdfminer.six under the hood).
@@ -76,14 +172,125 @@ Keep layers loosely coupled. Avoid embedding rendering concerns in ingestion or 
 - Avoid premature micro-optimizations until functional completeness and correctness are validated.
 
 ## Code Quality & Local Checks
+
+**CRITICAL TIMING**: Set timeouts of 60+ seconds for any command that includes mypy or full test suites.
+
 - **ALWAYS run local checks before committing** to ensure CI passes. Use `bash scripts/local-check.sh` or run individual tools:
-  - `ruff format --check .` - Code formatting (matches CI exactly)
-  - `ruff check .` - Linting 
-  - `mypy .` - Type checking
-  - `pytest -q` - Unit tests
+  - `ruff format --check .` - Code formatting (matches CI exactly) - ~0.02 seconds
+  - `ruff check .` - Linting - ~0.05 seconds
+  - `mypy .` - Type checking - ~11 seconds, **NEVER CANCEL**
+  - `pytest -q` - Unit tests - ~1.2 seconds
 - **Code formatting is mandatory**: Run `ruff format .` to auto-fix formatting issues before committing. CI will fail if code is not properly formatted.
 - Install dev dependencies with `pip install -e .[dev]` to get all required tools.
 - Pre-commit hooks are configured but local checks provide faster feedback.
+
+## Known Issues & Notes
+
+### Environment Setup
+- **Network access**: Fully configured and working reliably for all package installations
+- **pip install timing**: 30-45 seconds expected, includes comprehensive dependency installation
+- **npm install timing**: ~45 seconds for documentation tools installation
+- **apt install timing**: ~10 seconds for pandoc installation
+
+### Documentation Validation  
+- All documentation validation tools now work reliably
+- No fallback modes or workarounds needed
+- Full toolchain available: markdownlint-cli, mermaid-cli, pandoc
+
+### Environment-Specific Notes
+- **Network access**: Fully functional with comprehensive package repository access
+- **Installation reliability**: All tools install successfully and reliably
+- **Timeout handling**: All timeouts are set with 50% buffer over measured times
+
+### CI Pipeline Compatibility  
+- All local commands match CI exactly
+- Documentation validation runs successfully with full toolchain
+- Code quality checks are identical between local and CI environments
+- Network access enables full feature testing locally
+
+## Repository Structure & Key Locations
+
+### Critical Files
+- `src/pdf2md/` - Main source code directory
+- `tests/` - Unit test suite  
+- `scripts/local-check.sh` - Local validation script (matches CI exactly)
+- `scripts/validate-md.sh` - Documentation validation
+- `pyproject.toml` - Project configuration, dependencies, tool settings
+- `.github/workflows/` - CI pipeline definitions
+- `AGENTS.md` - Additional agent-specific guidance
+
+### Common File Outputs
+```
+Repository root structure:
+├── .github/
+│   ├── copilot-instructions.md (this file)
+│   └── workflows/ (CI definitions)
+├── src/pdf2md/ (main codebase)
+│   ├── __init__.py
+│   ├── cli.py (command-line interface)
+│   ├── config.py (ToolConfig)
+│   └── utils.py (utilities including slugs)
+├── tests/ (unit tests)
+├── doc/ (project documentation)
+├── pdf/ (sample PDF for testing)
+├── scripts/ (automation scripts)
+├── pyproject.toml (project config)
+└── README.md (user documentation)
+```
+
+## Development Workflow
+
+### Making Changes
+1. **Setup**: Create virtual environment and install dependencies
+2. **Validate baseline**: Run `bash scripts/local-check.sh` to ensure clean start
+3. **Implement changes**: Follow TDD - write tests first, then implementation
+4. **Test frequently**: Run `pytest` after each change
+5. **Format code**: Run `ruff format .` before committing
+6. **Final validation**: Run `bash scripts/local-check.sh` - **must pass before committing**
+
+### Testing Changes
+1. **Unit tests**: `pytest -q` for quick feedback
+2. **Type safety**: `mypy .` for type correctness
+3. **Code style**: `ruff check .` and `ruff format --check .`
+4. **CLI functionality**: Test `pdf2md --help` and basic conversion
+5. **Manual scenarios**: Follow validation scenarios above
+
+## Common Commands Reference
+
+### Quick Development Loop
+```bash
+# After making code changes:
+pytest -q                    # Quick test (~1-2 seconds)
+ruff format .               # Auto-fix formatting
+bash scripts/local-check.sh # Full validation (~15 seconds, NEVER CANCEL)
+```
+
+### Debugging & Development
+```bash
+# Individual tests
+pytest tests/test_utils_slugs.py::test_basic_slug_generation -v
+
+# CLI testing
+pdf2md --help
+pdf2md convert pdf/AUTOMATED_TESTING_IN_MICROSOFT_DYNAMICS_365_BUSI.pdf --out /tmp/debug
+
+# Type checking specific files
+mypy src/pdf2md/utils.py
+
+# Check specific formatting
+ruff format --check src/pdf2md/
+```
+
+### CI Simulation
+```bash
+# Run exactly what CI runs:
+bash scripts/local-check.sh
+
+# Documentation validation:
+bash scripts/validate-md.sh doc/*.md
+```
+
+**CRITICAL REMINDER**: Always run `bash scripts/local-check.sh` before committing. It runs the same checks as CI and prevents build failures.
 
 ## Future Extensions (Do Not Implement Prematurely)
 - OCR fallback, glossary extraction, plugin hooks — reference PRD Roadmap; leave clear extension points (module boundaries, stable function signatures).
