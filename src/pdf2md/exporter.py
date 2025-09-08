@@ -81,6 +81,7 @@ def build_manifest(
     sections: list[SectionNode],
     config: ToolConfig,
     *,
+    figures: list[dict[str, Any]] | None = None,
     tool_version: str = "0.1.0",
 ) -> dict[str, Any]:
     """Build complete manifest data structure from section tree.
@@ -88,6 +89,7 @@ def build_manifest(
     Args:
         sections: List of root SectionNode objects
         config: Tool configuration
+        figures: Optional list of figure projections for the manifest
         tool_version: Tool version string for generated_with field
 
     Returns:
@@ -117,7 +119,7 @@ def build_manifest(
     manifest = {
         "schema_version": "1.0.0",
         "sections": section_projections,
-        "figures": [],  # Empty for now, will be populated when figure extraction is implemented
+        "figures": figures or [],  # Use provided figures or empty list
         "footnotes": [],  # Empty for now, will be populated when footnote extraction is implemented
         "assets": [],
         "cross_references": [],
@@ -194,6 +196,7 @@ def export_manifest(
     output_dir: Path,
     config: ToolConfig,
     *,
+    figures: list[dict[str, Any]] | None = None,
     tool_version: str = "0.1.0",
 ) -> Path:
     """Export complete manifest to output directory.
@@ -202,12 +205,13 @@ def export_manifest(
         sections: List of root SectionNode objects
         output_dir: Directory to write manifest.json
         config: Tool configuration
+        figures: Optional list of figure projections for the manifest
         tool_version: Tool version string
 
     Returns:
         Path to written manifest.json file
     """
-    manifest = build_manifest(sections, config, tool_version=tool_version)
+    manifest = build_manifest(sections, config, figures=figures, tool_version=tool_version)
     manifest_path = output_dir / "manifest.json"
     write_manifest(manifest, manifest_path)
     return manifest_path

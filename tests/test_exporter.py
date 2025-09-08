@@ -529,3 +529,40 @@ def test_parent_child_relationship_identity_comparison(
 
     # Ensure they don't both point to the same parent (which would be the bug)
     assert section1_data["parent_id"] != section2_data["parent_id"]
+
+
+def test_build_manifest_with_figures(
+    config: ToolConfig, sample_sections: list[SectionNode]
+) -> None:
+    """Test building manifest with figures included."""
+    # Create sample figure projections
+    figures = [
+        {
+            "id": "fig_000",
+            "filename": "fig_000_test-chart.png",
+            "caption": "Figure 1: Test chart showing data",
+            "alt": "Chart with data visualization",
+            "page": 1,
+            "bbox": [100, 100, 200, 200],
+        },
+        {
+            "id": "fig_001",
+            "filename": "fig_001_diagram.png",
+            "caption": "Figure 2: System diagram",
+            "alt": "",
+            "page": 2,
+            "bbox": [150, 150, 250, 250],
+        },
+    ]
+
+    manifest = build_manifest(sample_sections, config, figures=figures)
+
+    # Check figures are included
+    assert len(manifest["figures"]) == 2
+    assert manifest["figures"] == figures
+
+    # Check structural hash includes figures
+    assert manifest["structural_hash"].startswith("sha256:")
+
+    # Verify figures don't affect sections
+    assert len(manifest["sections"]) == 4

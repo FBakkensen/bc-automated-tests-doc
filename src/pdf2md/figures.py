@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .models import BBox, Figure, Span
 from .utils import deterministic_slug
@@ -267,6 +267,34 @@ def _distance_to_figure(candidate: CaptionCandidate, figure: Figure) -> float:
     horizontal_distance = max(0, max(cap_x1 - fig_x2, fig_x1 - cap_x2))
     vertical_distance = max(0, max(cap_y1 - fig_y2, fig_y1 - cap_y2))
     return float((horizontal_distance**2 + vertical_distance**2) ** 0.5)
+
+
+def build_figure_projections(figures: list[Figure], filenames: list[str]) -> list[dict[str, Any]]:
+    """Build figure projections for manifest from figures and filenames.
+
+    Args:
+        figures: List of Figure objects
+        filenames: List of corresponding filenames
+
+    Returns:
+        List of figure projection dicts for manifest
+    """
+    projections = []
+
+    for i, (figure, filename) in enumerate(zip(figures, filenames, strict=True)):
+        figure_id = generate_figure_id(i)
+
+        projection = {
+            "id": figure_id,
+            "filename": filename,
+            "caption": figure.caption or "",
+            "alt": figure.alt or "",
+            "page": figure.page,
+            "bbox": list(figure.bbox),  # Convert tuple to list for JSON
+        }
+        projections.append(projection)
+
+    return projections
 
 
 def process_figures_with_captions(

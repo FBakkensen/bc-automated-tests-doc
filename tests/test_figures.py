@@ -8,6 +8,7 @@ from pdf2md.config import ToolConfig
 from pdf2md.figures import (
     CaptionCandidate,
     bind_captions_to_figures,
+    build_figure_projections,
     detect_caption_candidates,
     generate_figure_filename,
     generate_figure_id,
@@ -488,3 +489,45 @@ def test_config_validation_floating_point_tolerance() -> None:
         caption_weight_pattern=0.333334,  # Sum = 1.000000 (within tolerance)
     )
     assert config.caption_weight_distance == 0.333333
+
+
+def test_build_figure_projections() -> None:
+    """Test building figure projections for manifest."""
+    figures = [
+        Figure(
+            image_path="test1.png",
+            caption="Figure 1: First test image",
+            alt="Alt text for first image",
+            page=1,
+            bbox=(100, 100, 200, 200),
+        ),
+        Figure(
+            image_path="test2.png",
+            caption=None,  # No caption
+            alt=None,  # No alt text
+            page=2,
+            bbox=(150, 150, 250, 250),
+        ),
+    ]
+
+    filenames = ["fig_000_first-test-image.png", "fig_001.png"]
+
+    projections = build_figure_projections(figures, filenames)
+
+    assert len(projections) == 2
+
+    # First figure projection
+    assert projections[0]["id"] == "fig_000"
+    assert projections[0]["filename"] == "fig_000_first-test-image.png"
+    assert projections[0]["caption"] == "Figure 1: First test image"
+    assert projections[0]["alt"] == "Alt text for first image"
+    assert projections[0]["page"] == 1
+    assert projections[0]["bbox"] == [100, 100, 200, 200]
+
+    # Second figure projection
+    assert projections[1]["id"] == "fig_001"
+    assert projections[1]["filename"] == "fig_001.png"
+    assert projections[1]["caption"] == ""  # Empty string for None caption
+    assert projections[1]["alt"] == ""  # Empty string for None alt
+    assert projections[1]["page"] == 2
+    assert projections[1]["bbox"] == [150, 150, 250, 250]
