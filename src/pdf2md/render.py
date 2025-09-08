@@ -7,6 +7,7 @@ the slug policy from the PRD.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -14,27 +15,45 @@ if TYPE_CHECKING:
     from .config import ToolConfig
     from .models import SectionNode
 
+# Pattern to detect if a slug already has a numeric prefix (e.g., "01-intro")
+PREFIXED_SLUG_PATTERN = re.compile(r"^\d+-")
+
 
 def generate_filename(section: SectionNode, prefix_index: int, config: ToolConfig) -> str:
     """Generate filename for a section following the slug policy.
 
+    If the section already has a prefixed slug (e.g., "01-intro"), use it directly.
+    Otherwise, create a new slug with the provided prefix_index.
+
     Args:
         section: SectionNode to generate filename for
-        prefix_index: Index for filename prefix (zero-padded)
-        config: Tool configuration containing slug_prefix_width
+        prefix_index: Index for filename prefix (zero-padded, only used if slug lacks prefix)
+        config: Tool configuration containing slug_prefix_width and default_slug_fallback
 
     Returns:
-        Filename in format {prefix:0{width}d}_{slug}.md
+        Filename with .md extension
 
     Examples:
-        >>> section = SectionNode(title="Introduction", level=1, slug="introduction")
-        >>> config = ToolConfig(slug_prefix_width=2)
+        >>> # Section with pre-existing prefixed slug
+        >>> section = SectionNode(title="Introduction", level=1, slug="01-introduction")
+        >>> config = ToolConfig()
         >>> generate_filename(section, 1, config)
-        '01_introduction.md'
+        '01-introduction.md'
+
+        >>> # Section with simple slug - add prefix
+        >>> section = SectionNode(title="Overview", level=1, slug="overview")
+        >>> generate_filename(section, 2, config)
+        '02-overview.md'
     """
+    slug = section.slug or config.default_slug_fallback
+
+    # If slug already has a numeric prefix (e.g., "01-intro"), use it directly
+    if PREFIXED_SLUG_PATTERN.match(slug):
+        return f"{slug}.md"
+
+    # Otherwise, add the prefix using the configured width
     width = config.slug_prefix_width
-    slug = section.slug or "untitled"
-    return f"{prefix_index:0{width}d}_{slug}.md"
+    return f"{prefix_index:0{width}d}-{slug}.md"
 
 
 def render_section_stub(section: SectionNode) -> str:
