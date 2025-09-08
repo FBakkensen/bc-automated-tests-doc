@@ -36,12 +36,24 @@ class ToolConfig(BaseModel):
 
     @classmethod
     def from_file(cls, path: str) -> ToolConfig:
+        from .errors import ConfigParseError
+
         p = pathlib.Path(path)
         if not p.exists():
-            raise FileNotFoundError(path)
-        text = p.read_text(encoding="utf-8")
-        if p.suffix.lower() in {".yaml", ".yml"}:
-            data = yaml.safe_load(text) or {}
-        else:
-            data = json.loads(text)
-        return cls(**data)
+            raise ConfigParseError(f"Config file not found: {path}", {"path": path})
+
+        try:
+            text = p.read_text(encoding="utf-8")
+            if p.suffix.lower() in {".yaml", ".yml"}:
+                data = yaml.safe_load(text) or {}
+            else:
+                data = json.loads(text)
+            return cls(**data)
+        except (yaml.YAMLError, json.JSONDecodeError) as e:
+            raise ConfigParseError(
+                f"Failed to parse config file: {e}", {"path": path, "error": str(e)}
+            ) from e
+        except Exception as e:
+            raise ConfigParseError(
+                f"Unexpected error loading config: {e}", {"path": path, "error": str(e)}
+            ) from e
