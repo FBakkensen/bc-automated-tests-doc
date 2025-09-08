@@ -22,10 +22,14 @@ PUNCTUATION_ONLY_RE = re.compile(r'^[^\w\s]+$')
 
 # Patterns for list item detection
 BULLET_LIST_RE = re.compile(r"^\s*[•·▪▫‣-]\s+")
-ORDERED_LIST_RE = re.compile(r'^\s*(\d+|[a-zA-Z])\.\s+')
+ORDERED_LIST_RE = re.compile(r'^\s*(\d+|[a-zA-Z]+)\.\s+')
 
 # Pattern for potential table-like content (multiple columns separated by whitespace)
 TABLE_PATTERN = re.compile(r'^\s*\S+(?:\s{2,}\S+)+\s*$')
+
+# Constants for layout calculations
+SPACE_WIDTH_ESTIMATE = 5  # Estimated width of a space character in points
+POINTS_PER_NESTING_LEVEL = 25.0  # Points per indentation level for list nesting
 
 
 def assemble_blocks(spans: list[Span], config: ToolConfig) -> list[Block]:
@@ -891,7 +895,7 @@ def _join_spans_with_original_spacing(spans: list[Span]) -> str:
 
             # Convert gap to approximate number of spaces
             # Assume each space is about 4-6 points wide in typical fonts
-            space_count = max(1, int(gap / 5))
+            space_count = max(1, int(gap / SPACE_WIDTH_ESTIMATE))
 
             result += " " * space_count + text
 
@@ -953,9 +957,8 @@ def _calculate_list_nesting_level(line_spans: list[Span], all_spans: list[Span])
 
     # Convert offset to nesting level
     # Each level is approximately 20-30 points in typical PDFs
-    # We'll use 25 points per level as a reasonable default
-    points_per_level = 25.0
-    return max(0, round(x_offset / points_per_level))
+    # We'll use the configured default as a reasonable baseline
+    return max(0, round(x_offset / POINTS_PER_NESTING_LEVEL))
 
 
 def _calculate_combined_bbox(spans: list[Span]) -> tuple[float, float, float, float]:
