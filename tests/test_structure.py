@@ -380,12 +380,13 @@ def test_assemble_blocks_respect_code_min_lines_config(config):
 
 
 def test_assemble_blocks_respect_code_indent_threshold(config):
-    """Test that code_indent_threshold config parameter is respected."""
+    """Test that code_indent_threshold config parameter is respected for non-monospace text."""
     config.code_indent_threshold = 8  # Require more indentation
 
     spans = [
-        Span("    not_enough_indent", (40, 100, 120, 110), "Courier", 10, {"mono": True}, 1, 0),
-        Span("    still_not_enough", (40, 80, 120, 90), "Courier", 10, {"mono": True}, 1, 1),
+        # Use regular font (not monospace) so indentation threshold matters
+        Span("    not_enough_indent", (40, 100, 120, 110), "Arial", 10, {}, 1, 0),
+        Span("    still_not_enough", (40, 80, 120, 90), "Arial", 10, {}, 1, 1),
     ]
 
     result = assemble_blocks(spans, config)
@@ -545,19 +546,19 @@ def test_assemble_blocks_nested_bullet_lists(config):
     result = assemble_blocks(spans, config)
     assert len(result) == 1
     assert result[0].block_type == BlockType.LIST
-    
+
     # Check nesting structure
     meta = result[0].meta
     assert "list_items" in meta
     list_items = meta["list_items"]
     assert len(list_items) == 4
-    
+
     # Check nesting levels
     assert list_items[0]["level"] == 0  # First item
     assert list_items[1]["level"] == 1  # Nested item
     assert list_items[2]["level"] == 1  # Another nested
     assert list_items[3]["level"] == 0  # Second item
-    
+
     # Check max nesting level
     assert meta["max_nesting_level"] == 1
 
@@ -577,12 +578,12 @@ def test_assemble_blocks_nested_ordered_lists(config):
     result = assemble_blocks(spans, config)
     assert len(result) == 1
     assert result[0].block_type == BlockType.LIST
-    
+
     # Check nesting structure
     meta = result[0].meta
     list_items = meta["list_items"]
     assert len(list_items) == 4
-    
+
     # Check nesting levels
     assert list_items[0]["level"] == 0  # 1. First item
     assert list_items[1]["level"] == 1  # a. Nested item
@@ -607,19 +608,19 @@ def test_assemble_blocks_mixed_list_types_nesting(config):
     result = assemble_blocks(spans, config)
     assert len(result) == 1
     assert result[0].block_type == BlockType.LIST
-    
+
     # Check nesting structure
     meta = result[0].meta
     list_items = meta["list_items"]
     assert len(list_items) == 5
-    
+
     # Check nesting levels (should be based on x-position clusters)
     assert list_items[0]["level"] == 0  # • Main topic (x=10)
     assert list_items[1]["level"] == 1  # 1. First subtopic (x=30)
     assert list_items[2]["level"] == 1  # 2. Second subtopic (x=30)
     assert list_items[3]["level"] == 2  # • Detail point (x=50)
     assert list_items[4]["level"] == 0  # • Another main topic (x=10)
-    
+
     # Check max nesting level
     assert meta["max_nesting_level"] == 2
 
@@ -628,7 +629,7 @@ def test_assemble_blocks_list_indent_tolerance_respected(config):
     """Test that list_indent_tolerance is respected in nesting detection."""
     # Set a smaller tolerance for this test
     config.list_indent_tolerance = 5
-    
+
     spans = [
         # Items at x=10 and x=13 should be same level (within tolerance)
         Span("• First item", (10, 120, 80, 130), "Arial", 12, {}, 1, 0),
@@ -640,16 +641,113 @@ def test_assemble_blocks_list_indent_tolerance_respected(config):
     result = assemble_blocks(spans, config)
     assert len(result) == 1
     assert result[0].block_type == BlockType.LIST
-    
+
     # Check nesting structure
     meta = result[0].meta
     list_items = meta["list_items"]
     assert len(list_items) == 3
-    
+
     # Items at x=10 and x=13 should have same level (within tolerance of 5)
     assert list_items[0]["level"] == list_items[1]["level"]
     # Item at x=20 should have different level (outside tolerance)
     assert list_items[2]["level"] != list_items[0]["level"]
+
+
+def test_assemble_blocks_table_detection_high_confidence(config):
+    """Test table detection with high confidence."""
+    spans = [
+        # Header row with multiple columns separated by spaces
+        Span("Name", (10, 120, 40, 130), "Arial", 12, {}, 1, 0),
+        Span("Age", (80, 120, 100, 130), "Arial", 12, {}, 1, 1),
+        Span("City", (150, 120, 180, 130), "Arial", 12, {}, 1, 2),
+        # Data row 1
+        Span("John", (10, 100, 40, 110), "Arial", 12, {}, 1, 3),
+        Span("25", (80, 100, 95, 110), "Arial", 12, {}, 1, 4),
+        Span("NYC", (150, 100, 175, 110), "Arial", 12, {}, 1, 5),
+        # Data row 2
+        Span("Alice", (10, 80, 45, 90), "Arial", 12, {}, 1, 6),
+        Span("30", (80, 80, 95, 90), "Arial", 12, {}, 1, 7),
+        Span("LA", (150, 80, 165, 90), "Arial", 12, {}, 1, 8),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.TABLE
+
+    # Check table metadata
+    meta = result[0].meta
+    assert "table_rows" in meta
+    assert "confidence" in meta
+    assert meta["confidence"] >= config.table_confidence_min
+    assert meta["format"] == "table"
+
+    # Check table structure
+    table_rows = meta["table_rows"]
+    assert len(table_rows) == 3  # Header + 2 data rows
+    assert table_rows[0] == ["Name", "Age", "City"]
+    assert table_rows[1] == ["John", "25", "NYC"]
+    assert table_rows[2] == ["Alice", "30", "LA"]
+
+
+def test_assemble_blocks_table_fallback_low_confidence(config):
+    """Test table fallback to fenced code block when confidence is low."""
+    # Reduce confidence threshold to test fallback
+    config.table_confidence_min = 0.8
+
+    spans = [
+        # Ambiguous table-like content with adequate gaps but poor alignment
+        Span("Item1", (10, 120, 45, 130), "Arial", 12, {}, 1, 0),
+        Span("Value", (80, 120, 115, 130), "Arial", 12, {}, 1, 1),
+        # Second line with different structure but adequate gaps
+        Span("DifferentItem", (10, 100, 80, 110), "Arial", 12, {}, 1, 2),
+        Span("AnotherValue", (95, 100, 160, 110), "Arial", 12, {}, 1, 3),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.CODE_BLOCK  # Fallback to code block
+
+    # Check fallback metadata
+    meta = result[0].meta
+    assert meta["format"] == "fenced_fallback"
+    assert "original_confidence" in meta
+    assert meta["original_confidence"] < config.table_confidence_min
+    assert "dedented_lines" in meta
+
+
+def test_assemble_blocks_table_confidence_threshold_respected(config):
+    """Test that table_confidence_min threshold is respected."""
+    # Set a very high threshold
+    config.table_confidence_min = 0.95
+
+    spans = [
+        # Good table structure but below very high threshold
+        Span("A", (10, 120, 20, 130), "Arial", 12, {}, 1, 0),
+        Span("B", (80, 120, 90, 130), "Arial", 12, {}, 1, 1),
+        Span("1", (10, 100, 20, 110), "Arial", 12, {}, 1, 2),
+        Span("2", (80, 100, 90, 110), "Arial", 12, {}, 1, 3),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    # Should fallback to code block due to high threshold
+    assert result[0].block_type == BlockType.CODE_BLOCK
+    assert result[0].meta["format"] == "fenced_fallback"
+
+
+def test_assemble_blocks_insufficient_table_rows(config):
+    """Test that insufficient rows don't create a table."""
+    spans = [
+        # Only one row - not enough for a table
+        Span("Col1", (10, 120, 40, 130), "Arial", 12, {}, 1, 0),
+        Span("Col2", (80, 120, 110, 130), "Arial", 12, {}, 1, 1),
+        # Regular paragraph follows
+        Span("This is regular text", (10, 100, 150, 110), "Arial", 12, {}, 1, 2),
+    ]
+
+    result = assemble_blocks(spans, config)
+    assert len(result) == 1
+    assert result[0].block_type == BlockType.PARAGRAPH  # Not enough rows for table
 
 
 if __name__ == "__main__":

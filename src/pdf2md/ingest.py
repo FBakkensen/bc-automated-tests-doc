@@ -209,7 +209,20 @@ class PdfIngestor:
         style_flags["italic"] = any(indicator in font_name_lower for indicator in italic_indicators)
 
         # Detect monospace from font name
-        mono_indicators = ["courier", "mono", "fixed", "consol", "typewriter", "lucida console", "menlo", "monaco", "inconsolata", "source code", "fira code", "anonymous pro"]
+        mono_indicators = [
+            "courier",
+            "mono",
+            "fixed",
+            "consol",
+            "typewriter",
+            "lucida console",
+            "menlo",
+            "monaco",
+            "inconsolata",
+            "source code",
+            "fira code",
+            "anonymous pro",
+        ]
         style_flags["mono"] = any(indicator in font_name_lower for indicator in mono_indicators)
 
         # Additional heuristics based on character properties

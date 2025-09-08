@@ -262,10 +262,20 @@ class TestPdfIngestor:
         ingestor = PdfIngestor(config)
 
         mono_fonts = [
-            "Courier", "CourierNew", "courier", "COURIER-BOLD",
-            "Monaco", "Menlo", "Consolas", "Inconsolata",
-            "Source Code Pro", "Fira Code", "Anonymous Pro",
-            "Lucida Console", "Fixed-Width", "Typewriter"
+            "Courier",
+            "CourierNew",
+            "courier",
+            "COURIER-BOLD",
+            "Monaco",
+            "Menlo",
+            "Consolas",
+            "Inconsolata",
+            "Source Code Pro",
+            "Fira Code",
+            "Anonymous Pro",
+            "Lucida Console",
+            "Fixed-Width",
+            "Typewriter",
         ]
 
         for font_name in mono_fonts:
@@ -278,9 +288,17 @@ class TestPdfIngestor:
         ingestor = PdfIngestor(config)
 
         non_mono_fonts = [
-            "Arial", "Helvetica", "Times", "TimesNewRoman",
-            "Verdana", "Georgia", "Trebuchet MS", "Comic Sans MS",
-            "Calibri", "Cambria", "Century Gothic"
+            "Arial",
+            "Helvetica",
+            "Times",
+            "TimesNewRoman",
+            "Verdana",
+            "Georgia",
+            "Trebuchet MS",
+            "Comic Sans MS",
+            "Calibri",
+            "Cambria",
+            "Century Gothic",
         ]
 
         for font_name in non_mono_fonts:

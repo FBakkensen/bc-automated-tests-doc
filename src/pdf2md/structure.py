@@ -8,7 +8,7 @@ structured blocks (paragraphs, lists, code blocks, etc.).
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from .utils import repair_hyphenation
 
@@ -23,6 +23,9 @@ PUNCTUATION_ONLY_RE = re.compile(r'^[^\w\s]+$')
 # Patterns for list item detection
 BULLET_LIST_RE = re.compile(r"^\s*[•·▪▫‣-]\s+")
 ORDERED_LIST_RE = re.compile(r'^\s*(\d+|[a-zA-Z])\.\s+')
+
+# Pattern for potential table-like content (multiple columns separated by whitespace)
+TABLE_PATTERN = re.compile(r'^\s*\S+(?:\s{2,}\S+)+\s*$')
 
 
 def assemble_blocks(spans: list[Span], config: ToolConfig) -> list[Block]:
@@ -122,6 +125,36 @@ def assemble_blocks(spans: list[Span], config: ToolConfig) -> list[Block]:
             # Not enough lines for code block, treat as regular text
             line_type = BlockType.PARAGRAPH
 
+        # Check for potential table blocks - look ahead for table-like patterns
+        if _could_be_table_line(line_group) and line_type == BlockType.PARAGRAPH:
+            table_line_groups, consumed = _extract_potential_table_from_line_groups(
+                line_groups, i, config
+            )
+            if len(table_line_groups) >= 2:  # Need at least 2 lines for a table
+                table_block = _create_table_or_fallback_block(table_line_groups, config)
+                if table_block:
+                    # Finish current block if any
+                    if current_block_line_groups and current_block_type is not None:
+                        if (
+                            current_block_type == BlockType.LIST
+                            or current_block_type == BlockType.LIST_ITEM
+                        ):
+                            block = _create_nested_list_block(current_block_line_groups, config)
+                        else:
+                            block = _create_block_from_line_groups(
+                                current_block_type, current_block_line_groups
+                            )
+                        if block:
+                            blocks.append(block)
+                        current_block_line_groups = []
+                        current_block_type = None
+
+                    blocks.append(table_block)
+                    i += consumed
+                    continue
+            # Not enough lines for table, treat as regular text
+            line_type = BlockType.PARAGRAPH
+
         # Handle block transitions
         if current_block_type is None:
             # Start new block
@@ -136,7 +169,9 @@ def assemble_blocks(spans: list[Span], config: ToolConfig) -> list[Block]:
                 # Special handling for lists - process nesting
                 block = _create_nested_list_block(current_block_line_groups, config)
             else:
-                block = _create_block_from_line_groups(current_block_type, current_block_line_groups)
+                block = _create_block_from_line_groups(
+                    current_block_type, current_block_line_groups
+                )
             if block:
                 blocks.append(block)
 
@@ -240,27 +275,27 @@ def _classify_line_with_indentation(line: str, config: ToolConfig) -> str:
 
 def _is_monospace_line(line_spans: list[Span]) -> bool:
     """Check if a line consists primarily of monospace spans.
-    
+
     Args:
         line_spans: List of spans in the line.
-        
+
     Returns:
         True if the line should be considered monospace for code detection.
     """
     if not line_spans:
         return False
-    
+
     # Consider a line monospace if most spans (by character count) are monospace
     total_chars = 0
     mono_chars = 0
-    
+
     for span in line_spans:
         text = span.text.strip()
         if text:  # Only count non-empty spans
             total_chars += len(text)
             if span.style_flags.get("mono", False):
                 mono_chars += len(text)
-    
+
     # Line is monospace if at least 60% of characters are in monospace spans
     return total_chars > 0 and (mono_chars / total_chars) >= 0.6
 
@@ -296,7 +331,7 @@ def _extract_code_block_from_line_groups(
         leading_spaces = len(line_text) - len(line_text.lstrip())
         is_indented_code = leading_spaces >= config.code_indent_threshold
         is_monospace_code = _is_monospace_line(line_group)
-        
+
         if is_indented_code or is_monospace_code:
             code_line_groups.append(line_group)
             i += 1
@@ -477,37 +512,39 @@ def _dedent_code_lines(lines: list[str]) -> list[str]:
 
 def _create_nested_list_block(line_groups: list[list[Span]], config: ToolConfig) -> Block | None:
     """Create a List block with proper nesting based on x-offset deltas.
-    
+
     Args:
         line_groups: List of span groups, each representing a list item line.
         config: ToolConfig instance with list_indent_tolerance.
-        
+
     Returns:
         Block object with nested list structure or None if creation fails.
     """
     if not line_groups:
         return None
-    
+
     from .models import Block, BlockType
-    
+
     # Flatten all spans
     all_spans = []
     for line_group in line_groups:
         all_spans.extend(line_group)
-    
+
     # Calculate x-positions for each list item
     list_items = []
     for line_group in line_groups:
         x_pos = _get_list_item_x_position(line_group)
-        list_items.append({
-            "spans": line_group,
-            "x_position": x_pos,
-            "level": 0  # Will be calculated below
-        })
-    
+        list_items.append(
+            {
+                "spans": line_group,
+                "x_position": x_pos,
+                "level": 0,  # Will be calculated below
+            }
+        )
+
     # Calculate nesting levels based on x-position clusters
     _assign_nesting_levels(list_items, config.list_indent_tolerance)
-    
+
     # Calculate bounding box and page span
     if all_spans:
         bbox = _calculate_combined_bbox(all_spans)
@@ -515,97 +552,386 @@ def _create_nested_list_block(line_groups: list[list[Span]], config: ToolConfig)
     else:
         bbox = (0.0, 0.0, 0.0, 0.0)
         page_span = (1, 1)
-    
+
     # Store the nested structure in metadata
     meta = {
         "list_items": list_items,
-        "max_nesting_level": max(item["level"] for item in list_items) if list_items else 0
+        "max_nesting_level": max((cast(int, item["level"]) for item in list_items), default=0),
     }
-    
+
     return Block(
-        block_type=BlockType.LIST,
-        spans=all_spans,
-        bbox=bbox,
-        page_span=page_span,
-        meta=meta
+        block_type=BlockType.LIST, spans=all_spans, bbox=bbox, page_span=page_span, meta=meta
     )
 
 
 def _get_list_item_x_position(line_spans: list[Span]) -> float:
     """Get the x-position of a list item's marker.
-    
+
     Args:
         line_spans: Spans for the list item line.
-        
+
     Returns:
         X-coordinate of the list marker.
     """
     if not line_spans:
         return 0.0
-    
+
     # Find the span containing the list marker
     for span in line_spans:
         text = span.text.strip()
         if BULLET_LIST_RE.match(text) or ORDERED_LIST_RE.match(text):
             return span.bbox[0]  # x0 coordinate
-    
+
     # Fallback: use the leftmost span
     return min(span.bbox[0] for span in line_spans)
 
 
-def _assign_nesting_levels(list_items: list[dict], tolerance: int) -> None:
+def _assign_nesting_levels(list_items: list[dict[str, object]], tolerance: int) -> None:
     """Assign nesting levels to list items based on x-position clusters.
-    
+
     Args:
         list_items: List of dicts with 'x_position' and 'level' keys.
         tolerance: Tolerance for x-position clustering.
     """
     if not list_items:
         return
-    
+
     # Sort by x-position to find clusters
-    sorted_items = sorted(list_items, key=lambda item: item["x_position"])
-    
+    sorted_items = sorted(list_items, key=lambda item: cast(float, item["x_position"]))
+
     # Find unique x-position clusters within tolerance
-    clusters = []
+    clusters: list[dict[str, object]] = []
     for item in sorted_items:
-        x_pos = item["x_position"]
-        
+        x_pos = cast(float, item["x_position"])
+
         # Find existing cluster within tolerance
         found_cluster = None
         for cluster in clusters:
-            if abs(x_pos - cluster["x_pos"]) <= tolerance:
+            cluster_x_pos = cast(float, cluster["x_pos"])
+            if abs(x_pos - cluster_x_pos) <= tolerance:
                 found_cluster = cluster
                 break
-        
+
         if found_cluster:
-            found_cluster["items"].append(item)
+            cluster_items = found_cluster["items"]
+            if isinstance(cluster_items, list):
+                cluster_items.append(item)
         else:
-            clusters.append({
-                "x_pos": x_pos,
-                "items": [item],
-                "level": len(clusters)  # Level based on order of discovery
-            })
-    
+            clusters.append(
+                {
+                    "x_pos": x_pos,
+                    "items": [item],
+                    "level": len(clusters),  # Level based on order of discovery
+                }
+            )
+
     # Assign levels to items
     for cluster in clusters:
-        for item in cluster["items"]:
-            item["level"] = cluster["level"]
+        cluster_items = cluster["items"]
+        cluster_level = cast(int, cluster["level"])
+        if isinstance(cluster_items, list):
+            for item in cluster_items:
+                item["level"] = cluster_level
+
+
+def _could_be_table_line(line_spans: list[Span]) -> bool:
+    """Check if a line could be part of a table based on layout heuristics.
+
+    Args:
+        line_spans: List of spans in the line.
+
+    Returns:
+        True if the line could be part of a table.
+    """
+    if not line_spans:
+        return False
+
+    # Join the line text and check against table pattern
+    line_text = _join_spans_with_smart_spacing(line_spans)
+
+    # Check if it matches table-like pattern (multiple columns)
+    if TABLE_PATTERN.match(line_text):
+        return True
+
+    # Additional heuristic: check if spans are well-separated horizontally
+    if len(line_spans) >= 2:
+        # Sort spans by x-position
+        sorted_spans = sorted(line_spans, key=lambda s: s.bbox[0])
+
+        # Check for significant gaps between spans (potential column separators)
+        gaps = []
+        for i in range(len(sorted_spans) - 1):
+            gap = sorted_spans[i + 1].bbox[0] - sorted_spans[i].bbox[2]  # Next x0 - current x1
+            gaps.append(gap)
+
+        # If there are significant gaps (> 10 points), it might be a table
+        if gaps and max(gaps) > 10:
+            return True
+
+    return False
+
+
+def _extract_potential_table_from_line_groups(
+    line_groups: list[list[Span]], start_idx: int, config: ToolConfig
+) -> tuple[list[list[Span]], int]:
+    """Extract consecutive line groups that could form a table.
+
+    Args:
+        line_groups: List of all line groups.
+        start_idx: Index to start looking for table.
+        config: ToolConfig instance.
+
+    Returns:
+        Tuple of (table_line_groups, number_of_line_groups_consumed).
+    """
+    table_line_groups = []
+    i = start_idx
+
+    while i < len(line_groups):
+        line_group = line_groups[i]
+        line_text = _join_spans_with_smart_spacing(line_group).strip()
+
+        # Empty lines break tables
+        if not line_text:
+            break
+
+        # Check if line could be part of table
+        if _could_be_table_line(line_group):
+            table_line_groups.append(line_group)
+            i += 1
+        else:
+            # Non-table line ends the table
+            break
+
+    return table_line_groups, i - start_idx
+
+
+def _create_table_or_fallback_block(
+    line_groups: list[list[Span]], config: ToolConfig
+) -> Block | None:
+    """Create a table block or fallback to fenced code block based on confidence.
+
+    Args:
+        line_groups: List of span groups that could form a table.
+        config: ToolConfig instance with table_confidence_min.
+
+    Returns:
+        Block object (either Table or CodeBlock) or None if creation fails.
+    """
+    if not line_groups:
+        return None
+
+    from .models import Block, BlockType
+
+    # Calculate table confidence
+    confidence = _calculate_table_confidence(line_groups)
+
+    # Flatten all spans
+    all_spans = []
+    for line_group in line_groups:
+        all_spans.extend(line_group)
+
+    # Calculate bounding box and page span
+    if all_spans:
+        bbox = _calculate_combined_bbox(all_spans)
+        page_span = (min(s.page for s in all_spans), max(s.page for s in all_spans))
+    else:
+        bbox = (0.0, 0.0, 0.0, 0.0)
+        page_span = (1, 1)
+
+    if confidence >= config.table_confidence_min:
+        # High confidence - create a proper table block
+        table_rows = _extract_table_rows(line_groups)
+        meta = {"table_rows": table_rows, "confidence": confidence, "format": "table"}
+        return Block(
+            block_type=BlockType.TABLE, spans=all_spans, bbox=bbox, page_span=page_span, meta=meta
+        )
+    # Low confidence - fallback to fenced code block
+    code_lines = []
+    for line_group in line_groups:
+        line_text = _join_spans_preserving_leading_whitespace(line_group)
+        code_lines.append(line_text)
+
+    meta = {
+        "code_language": None,
+        "dedented_lines": code_lines,  # Don't dedent for table fallback
+        "format": "fenced_fallback",
+        "original_confidence": confidence,
+    }
+    return Block(
+        block_type=BlockType.CODE_BLOCK,
+        spans=all_spans,
+        bbox=bbox,
+        page_span=page_span,
+        meta=meta,
+    )
+
+
+def _calculate_table_confidence(line_groups: list[list[Span]]) -> float:
+    """Calculate confidence score for table detection.
+
+    Args:
+        line_groups: List of span groups to analyze.
+
+    Returns:
+        Confidence score between 0.0 and 1.0.
+    """
+    if not line_groups:
+        return 0.0
+
+    confidence_factors = []
+
+    # Factor 1: Consistent number of columns
+    column_counts = []
+    for line_group in line_groups:
+        line_text = _join_spans_with_original_spacing(line_group)
+        # Count potential columns by splitting on multiple spaces
+        columns = re.split(r'\s{2,}', line_text.strip())
+        column_counts.append(len(columns))
+
+    if column_counts:
+        # Higher confidence if column counts are consistent
+        most_common_count = max(set(column_counts), key=column_counts.count)
+        consistency = column_counts.count(most_common_count) / len(column_counts)
+        confidence_factors.append(consistency)
+
+    # Factor 2: Multiple columns detected
+    if column_counts and max(column_counts) >= 2:
+        # More columns = higher confidence (up to a point)
+        max_columns = max(column_counts)
+        column_factor = min(1.0, max_columns / 4.0)  # Normalize to 1.0 at 4+ columns
+        confidence_factors.append(column_factor)
+    else:
+        confidence_factors.append(0.0)
+
+    # Factor 3: Number of rows (more rows = higher confidence)
+    row_factor = min(1.0, len(line_groups) / 5.0)  # Normalize to 1.0 at 5+ rows
+    confidence_factors.append(row_factor)
+
+    # Factor 4: Alignment consistency (check if spans align vertically)
+    alignment_factor = _calculate_alignment_factor(line_groups)
+    confidence_factors.append(alignment_factor)
+
+    # Average all factors
+    if confidence_factors:
+        return sum(confidence_factors) / len(confidence_factors)
+    return 0.0
+
+
+def _calculate_alignment_factor(line_groups: list[list[Span]]) -> float:
+    """Calculate alignment consistency factor for table confidence.
+
+    Args:
+        line_groups: List of span groups to analyze.
+
+    Returns:
+        Alignment factor between 0.0 and 1.0.
+    """
+    if len(line_groups) < 2:
+        return 0.0
+
+    # Collect x-positions of spans across all lines
+    x_positions = []
+    for line_group in line_groups:
+        line_x_positions = [span.bbox[0] for span in line_group]
+        x_positions.append(line_x_positions)
+
+    # Check for consistent alignment (x-positions that appear in multiple lines)
+    alignment_tolerance = 5.0  # pixels
+    alignment_scores = []
+
+    for i, positions_i in enumerate(x_positions):
+        for _j, positions_j in enumerate(x_positions[i + 1 :], i + 1):
+            # Count aligned positions between lines i and j
+            aligned_count = 0
+            for pos_i in positions_i:
+                for pos_j in positions_j:
+                    if abs(pos_i - pos_j) <= alignment_tolerance:
+                        aligned_count += 1
+                        break
+
+            # Score based on proportion of aligned positions
+            max_positions = max(len(positions_i), len(positions_j))
+            if max_positions > 0:
+                alignment_scores.append(aligned_count / max_positions)
+
+    return sum(alignment_scores) / len(alignment_scores) if alignment_scores else 0.0
+
+
+def _join_spans_with_original_spacing(spans: list[Span]) -> str:
+    """Join spans preserving original spacing between them based on bbox positions.
+
+    This is useful for table detection where we need to preserve column separations.
+
+    Args:
+        spans: List of spans to join, assumed to be sorted by x-coordinate.
+
+    Returns:
+        Joined text with original spacing preserved.
+    """
+    if not spans:
+        return ""
+
+    # Sort spans by x-coordinate to ensure left-to-right order
+    sorted_spans = sorted(spans, key=lambda s: s.bbox[0])
+
+    result = ""
+    for i, span in enumerate(sorted_spans):
+        text = span.text.strip()
+        if not text:
+            continue
+
+        if i == 0:
+            # First span
+            result = text
+        else:
+            # Calculate gap between previous span and current span
+            prev_span = sorted_spans[i - 1]
+            gap = span.bbox[0] - prev_span.bbox[2]  # Current x0 - previous x1
+
+            # Convert gap to approximate number of spaces
+            # Assume each space is about 4-6 points wide in typical fonts
+            space_count = max(1, int(gap / 5))
+
+            result += " " * space_count + text
+
+    return result
+
+
+def _extract_table_rows(line_groups: list[list[Span]]) -> list[list[str]]:
+    """Extract table rows from line groups.
+
+    Args:
+        line_groups: List of span groups representing table lines.
+
+    Returns:
+        List of table rows, each row is a list of cell strings.
+    """
+    rows = []
+    for line_group in line_groups:
+        line_text = _join_spans_with_original_spacing(line_group)
+        # Split on multiple spaces to get columns
+        columns = re.split(r'\s{2,}', line_text.strip())
+        # Clean up columns
+        clean_columns = [col.strip() for col in columns if col.strip()]
+        if clean_columns:
+            rows.append(clean_columns)
+    return rows
 
 
 def _calculate_list_nesting_level(line_spans: list[Span], all_spans: list[Span]) -> int:
     """Calculate the nesting level of a list item based on x-offset.
-    
+
     Args:
         line_spans: Spans for the list item line.
         all_spans: All spans in the document for baseline calculation.
-        
+
     Returns:
         Nesting level (0 for top level, 1 for first nested, etc.).
     """
     if not line_spans:
         return 0
-    
+
     # Find the leftmost x-position of the list marker
     # Look for the first span that contains list markers
     marker_x = None
@@ -614,24 +940,22 @@ def _calculate_list_nesting_level(line_spans: list[Span], all_spans: list[Span])
         if BULLET_LIST_RE.match(text) or ORDERED_LIST_RE.match(text):
             marker_x = span.bbox[0]  # x0 coordinate
             break
-    
+
     if marker_x is None:
         # Fallback: use the leftmost span
         marker_x = min(span.bbox[0] for span in line_spans)
-    
+
     # Find the baseline x-position (leftmost margin) from all spans
     baseline_x = min(span.bbox[0] for span in all_spans) if all_spans else 0.0
-    
+
     # Calculate offset from baseline
     x_offset = marker_x - baseline_x
-    
+
     # Convert offset to nesting level
     # Each level is approximately 20-30 points in typical PDFs
     # We'll use 25 points per level as a reasonable default
-    POINTS_PER_LEVEL = 25.0
-    level = max(0, int(round(x_offset / POINTS_PER_LEVEL)))
-    
-    return level
+    points_per_level = 25.0
+    return max(0, round(x_offset / points_per_level))
 
 
 def _calculate_combined_bbox(spans: list[Span]) -> tuple[float, float, float, float]:
