@@ -4,7 +4,7 @@ import json
 import pathlib
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 
 class ToolConfig(BaseModel):
@@ -14,6 +14,10 @@ class ToolConfig(BaseModel):
     code_min_lines: int = 2
     code_indent_threshold: int = 4
     figure_caption_distance: int = 150
+    # Caption scoring weights - must sum to 1.0
+    caption_weight_distance: float = 0.4
+    caption_weight_position: float = 0.3  # below-figure preference
+    caption_weight_pattern: float = 0.3  # pattern matching (Fig., Figure, etc.)
     exclude_pages: list[int] = Field(default_factory=list)
     heading_normalize: bool = True
     slug_prefix_width: int = 2
@@ -33,6 +37,31 @@ class ToolConfig(BaseModel):
     numbering_max_depth: int = 6
     # Appendix configuration
     appendix_requires_page_break: bool = True
+
+    @field_validator("caption_weight_distance", "caption_weight_position", "caption_weight_pattern")
+    @classmethod
+    def validate_caption_weights(cls, v: float, info: ValidationInfo) -> float:
+        """Validate individual caption weights are between 0 and 1."""
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"Caption weight must be between 0.0 and 1.0, got {v}")
+        return v
+
+    @model_validator(mode="after")
+    def validate_weights_sum(self) -> ToolConfig:
+        """Validate that caption weights sum to 1.0."""
+        total_weight = (
+            self.caption_weight_distance
+            + self.caption_weight_position
+            + self.caption_weight_pattern
+        )
+        if abs(total_weight - 1.0) > 1e-6:  # Allow small floating point errors
+            raise ValueError(
+                f"Caption weights must sum to 1.0, got {total_weight:.6f} "
+                f"(distance={self.caption_weight_distance}, "
+                f"position={self.caption_weight_position}, "
+                f"pattern={self.caption_weight_pattern})"
+            )
+        return self
 
     @classmethod
     def from_file(cls, path: str) -> ToolConfig:
