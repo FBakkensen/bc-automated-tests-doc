@@ -30,11 +30,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          # Cache based on lockfile when present
-          cache-dependency-path: |
-            package-lock.json
-            npm-shrinkwrap.json
+          # Best practice: enable cache only when you
+          # actually install deps with a lockfile (npm ci)
+          # See actions/setup-node docs.
 
       - name: Install project (dev)
         run: pip install -U pip && pip install -e .[dev]
