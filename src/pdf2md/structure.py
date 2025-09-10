@@ -15,6 +15,67 @@ from .utils import repair_hyphenation
 if TYPE_CHECKING:
     from .config import ToolConfig
     from .models import Block, Span
+else:
+    # Import for runtime use - needed for cast() function
+    from .models import Span
+
+
+def _detect_and_create_footnote_blocks(
+    spans: list[Span], config: ToolConfig
+) -> tuple[list[Block], list[Span]]:
+    """Detect footnotes and create footnote blocks, returning remaining spans.
+
+    Args:
+        spans: List of all spans to process.
+        config: ToolConfig instance.
+
+    Returns:
+        Tuple of (footnote_blocks, remaining_spans).
+    """
+    if not spans:
+        return [], []
+
+    # Import footnotes module
+    from .footnotes import detect_footnote_text
+    from .models import Block, BlockType
+
+    # Estimate page height from spans (find maximum y-coordinate)
+    max_y = max(span.bbox[3] for span in spans)  # y1 (bottom) coordinate
+    page_height = max_y + 50  # Add some buffer
+
+    # Detect footnote text in bottom band
+    footnote_data = detect_footnote_text(spans, page_height, config)
+
+    footnote_blocks: list[Block] = []
+    footnote_span_ids: set[int] = set()
+
+    # Create footnote blocks and track which spans are used by their order_index
+    for footnote in footnote_data:
+        footnote_spans = footnote["spans"]
+        # Type cast for mypy - we know this is a list from detect_footnote_text
+        footnote_spans = cast(list[Span], footnote_spans)
+        footnote_span_ids.update(span.order_index for span in footnote_spans)
+
+        # Calculate bounding box from footnote spans
+        bbox = _calculate_combined_bbox(footnote_spans)
+        page_span = (min(s.page for s in footnote_spans), max(s.page for s in footnote_spans))
+
+        # Create footnote block
+        meta = {"footnote_number": footnote["number"], "footnote_text": footnote["text"]}
+
+        footnote_block = Block(
+            block_type=BlockType.FOOTNOTE_PLACEHOLDER,
+            spans=footnote_spans,
+            bbox=bbox,
+            page_span=page_span,
+            meta=meta,
+        )
+        footnote_blocks.append(footnote_block)
+
+    # Filter out footnote spans from regular spans using order_index
+    remaining_spans = [span for span in spans if span.order_index not in footnote_span_ids]
+
+    return footnote_blocks, remaining_spans
 
 
 # Pattern to match punctuation-only spans that should not have spaces before them
@@ -37,7 +98,7 @@ def assemble_blocks(spans: list[Span], config: ToolConfig) -> list[Block]:
 
     Groups consecutive spans into structured blocks based on their content and layout.
     This includes detecting paragraphs, list items (bullet and numbered), code blocks
-    based on indentation, and empty lines.
+    based on indentation, empty lines, and footnotes.
 
     Args:
         spans: List of Span objects to process, assumed to be sorted by order_index.
@@ -65,10 +126,13 @@ def assemble_blocks(spans: list[Span], config: ToolConfig) -> list[Block]:
     # Import here to avoid circular imports
     from .models import BlockType
 
+    # Detect footnotes first and separate them from regular spans
+    footnote_blocks, regular_spans = _detect_and_create_footnote_blocks(spans, config)
+
     # Group spans into logical lines while preserving the original spans for each line
-    line_groups = _group_spans_into_lines_with_spans(spans, config)
+    line_groups = _group_spans_into_lines_with_spans(regular_spans, config)
     if not line_groups:
-        return []
+        return footnote_blocks
 
     # Group line groups into blocks
     blocks = []
@@ -193,6 +257,9 @@ def assemble_blocks(spans: list[Span], config: ToolConfig) -> list[Block]:
             block = _create_block_from_line_groups(current_block_type, current_block_line_groups)
         if block:
             blocks.append(block)
+
+    # Add footnote blocks at the end
+    blocks.extend(footnote_blocks)
 
     return blocks
 
