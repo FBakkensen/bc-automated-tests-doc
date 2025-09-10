@@ -15,6 +15,9 @@ from .utils import repair_hyphenation
 if TYPE_CHECKING:
     from .config import ToolConfig
     from .models import Block, Span
+else:
+    # Import for runtime use - needed for cast() function
+    from .models import Span
 
 
 def _detect_and_create_footnote_blocks(
@@ -50,8 +53,6 @@ def _detect_and_create_footnote_blocks(
     for footnote in footnote_data:
         footnote_spans = footnote["spans"]
         # Type cast for mypy - we know this is a list from detect_footnote_text
-        from .models import Span  # Import here for runtime access
-
         footnote_spans = cast(list[Span], footnote_spans)
         footnote_span_ids.update(span.order_index for span in footnote_spans)
 

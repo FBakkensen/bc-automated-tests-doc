@@ -67,7 +67,14 @@ def detect_footnote_text(
 
     footnotes = []
     for group in footnote_groups:
-        footnote_number = _extract_footnote_number(group[0])
+        # Find the span with the footnote number (could be any span in the group)
+        footnote_number = None
+        for span in group:
+            fn_num = _extract_footnote_number(span)
+            if fn_num:
+                footnote_number = fn_num
+                break
+
         if footnote_number:
             footnote_text = _merge_footnote_text(group, config)
             footnotes.append(
@@ -151,47 +158,65 @@ def _is_numeric_footnote_marker(text: str) -> bool:
 
 
 def _group_footnote_text(spans: list[Span], config: ToolConfig) -> list[list[Span]]:
-    """Group footnote text spans by proximity and line."""
+    """Group footnote text spans by page first, then by proximity and line."""
     if not spans:
         return []
 
-    # Sort spans by y-coordinate (top to bottom) then x-coordinate
-    sorted_spans = sorted(
-        spans, key=lambda s: (-s.bbox[1], s.bbox[0])
-    )  # Negative y for bottom-to-top
+    # Group spans by page first to avoid cross-page footnote merging
+    spans_by_page: dict[int, list[Span]] = {}
+    for span in spans:
+        if span.page not in spans_by_page:
+            spans_by_page[span.page] = []
+        spans_by_page[span.page].append(span)
 
-    groups = []
-    current_group = [sorted_spans[0]]
+    all_groups = []
 
-    for span in sorted_spans[1:]:
-        # Check if this span belongs to the current footnote group
-        prev_span = current_group[-1]
+    # Process each page independently
+    for page_num in sorted(spans_by_page.keys()):
+        page_spans = spans_by_page[page_num]
 
-        # Same line if y-coordinates are close
-        y_diff = abs(span.bbox[1] - prev_span.bbox[1])
-        is_same_line = y_diff <= config.line_merge_y_tolerance
+        # Sort spans by y-coordinate (top to bottom) then x-coordinate
+        sorted_spans = sorted(page_spans, key=lambda s: (s.bbox[1], s.bbox[0]))
 
-        # Check if this starts a new footnote (has a leading number)
-        starts_new_footnote = _extract_footnote_number(span) is not None
+        groups = []
+        current_group = [sorted_spans[0]]
 
-        if starts_new_footnote and current_group and not is_same_line:
-            # Start new group
-            groups.append(current_group)
-            current_group = [span]
-        elif is_same_line or (y_diff <= 15 and not starts_new_footnote):
-            # Continue current group (multi-line footnote)
-            current_group.append(span)
-        else:
-            # End current group and start new one
-            if current_group:
+        for span in sorted_spans[1:]:
+            # Check if this span belongs to the current footnote group
+            prev_span = current_group[-1]
+
+            # Same line if y-coordinates are close
+            y_diff = abs(span.bbox[1] - prev_span.bbox[1])
+            is_same_line = y_diff <= config.line_merge_y_tolerance
+
+            # Check if this starts a new footnote (has a leading number)
+            starts_new_footnote = _extract_footnote_number(span) is not None
+
+            # For footnotes, be more tolerant of vertical spacing between lines
+            # Allow up to 20px gap for multi-line footnotes if no new number is detected
+            max_footnote_line_gap = 20
+
+            if starts_new_footnote and current_group and not is_same_line:
+                # Start new group
                 groups.append(current_group)
-            current_group = [span]
+                current_group = [span]
+            elif is_same_line or (y_diff <= max_footnote_line_gap and not starts_new_footnote):
+                # Continue current group (multi-line footnote)
+                current_group.append(span)
+            else:
+                # End current group and start new one
+                if current_group:
+                    groups.append(current_group)
+                current_group = [span]
 
-    # Add the last group
-    if current_group:
-        groups.append(current_group)
+        # Add the last group for this page
+        if current_group:
+            groups.append(current_group)
 
-    return groups
+        # Add all groups from this page to the overall list
+        all_groups.extend(groups)
+
+    return all_groups
 
 
 def _extract_footnote_number(span: Span) -> str | None:
@@ -206,8 +231,8 @@ def _merge_footnote_text(spans: list[Span], config: ToolConfig) -> str:
     if not spans:
         return ""
 
-    # Sort spans by reading order (y descending for footnotes, then x ascending)
-    sorted_spans = sorted(spans, key=lambda s: (-s.bbox[1], s.bbox[0]))
+    # Sort spans by reading order (y ascending for normal reading, then x ascending)
+    sorted_spans = sorted(spans, key=lambda s: (s.bbox[1], s.bbox[0]))
 
     # Extract text from each span
     texts = []
@@ -226,5 +251,5 @@ def _merge_footnote_text(spans: list[Span], config: ToolConfig) -> str:
     if config.footnote_merge:
         # Merge all text into a single footnote
         return ' '.join(texts).strip()
-    # Keep separate lines (for now, still merge but preserve line breaks)
-    return ' '.join(texts).strip()
+    # Keep separate lines (preserve line breaks)
+    return '\n'.join(texts).strip()

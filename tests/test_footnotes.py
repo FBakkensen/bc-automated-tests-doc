@@ -32,7 +32,7 @@ def test_detect_superscript_marker():
     assert markers[0]["span"] == spans[1]
 
 
-def test_detect_footnote_text_in_bottom_band():
+def test_detect_footnote_text_in_bottom_band(config):
     """Test detection of footnote text at the bottom of a page."""
     # Mock page height = 800, so bottom band starts around y=700
     spans = [
@@ -45,7 +45,7 @@ def test_detect_footnote_text_in_bottom_band():
 
     from pdf2md.footnotes import detect_footnote_text
 
-    footnote_text = detect_footnote_text(spans, page_height=800)
+    footnote_text = detect_footnote_text(spans, page_height=800, config=config)
     assert len(footnote_text) == 1
     assert footnote_text[0]["number"] == "1"
     assert "This is footnote text" in footnote_text[0]["text"]
@@ -80,7 +80,7 @@ def test_multiline_footnote_merge(config):
     footnote_spans = [
         Span("1", (50, 750, 60, 760), "Arial", 10, {}, 1, 0),
         Span("This is the first line", (65, 750, 250, 760), "Arial", 10, {}, 1, 1),
-        Span("of the footnote", (65, 740, 200, 750), "Arial", 10, {}, 1, 2),
+        Span("of the footnote", (65, 760, 200, 770), "Arial", 10, {}, 1, 2),
     ]
 
     from pdf2md.footnotes import detect_footnote_text
@@ -192,3 +192,55 @@ def test_unmatched_footnote_text():
     associations = associate_footnotes(marker_spans, footnote_spans, page_height=800)
     # Should handle gracefully
     assert len(associations) == 0
+
+
+def test_footnote_grouping_respects_page_boundaries(config):
+    """Test that footnotes on different pages are grouped separately."""
+    spans = [
+        # Page 1 footnotes
+        Span("1", (50, 750, 60, 760), "Arial", 10, {}, 1, 0),
+        Span("Footnote on page 1", (65, 750, 250, 760), "Arial", 10, {}, 1, 1),
+        # Page 2 footnotes with similar y-coordinates
+        Span("1", (50, 750, 60, 760), "Arial", 10, {}, 2, 2),
+        Span("Footnote on page 2", (65, 750, 250, 760), "Arial", 10, {}, 2, 3),
+    ]
+
+    from pdf2md.footnotes import detect_footnote_text
+
+    footnote_text = detect_footnote_text(spans, page_height=800, config=config)
+
+    # Should detect 2 separate footnotes, one per page
+    assert len(footnote_text) == 2
+
+    # Both should be footnote number "1" but on different pages
+    assert footnote_text[0]["number"] == "1"
+    assert footnote_text[1]["number"] == "1"
+    assert footnote_text[0]["page"] != footnote_text[1]["page"]
+
+    # Check content to ensure they're separate
+    assert "page 1" in footnote_text[0]["text"]
+    assert "page 2" in footnote_text[1]["text"]
+
+
+def test_footnote_merge_configuration(config):
+    """Test that footnote merging behavior respects configuration."""
+    # Multi-line footnote spans with smaller y difference
+    spans = [
+        Span("1", (50, 750, 60, 760), "Arial", 10, {}, 1, 0),
+        Span("First line of footnote", (65, 750, 250, 760), "Arial", 10, {}, 1, 1),
+        Span("Second line of footnote", (65, 752, 250, 762), "Arial", 10, {}, 1, 2),
+    ]
+
+    from pdf2md.footnotes import detect_footnote_text
+
+    # Test with footnote_merge=True (should join with spaces)
+    config.footnote_merge = True
+    footnote_text = detect_footnote_text(spans, page_height=800, config=config)
+    assert len(footnote_text) == 1
+    assert footnote_text[0]["text"] == "First line of footnote Second line of footnote"
+
+    # Test with footnote_merge=False (should preserve line breaks)
+    config.footnote_merge = False
+    footnote_text = detect_footnote_text(spans, page_height=800, config=config)
+    assert len(footnote_text) == 1
+    assert footnote_text[0]["text"] == "First line of footnote\nSecond line of footnote"
